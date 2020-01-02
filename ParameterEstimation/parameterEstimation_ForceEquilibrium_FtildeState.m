@@ -5,8 +5,8 @@
 % Date: 12/19/2018
 % 
 function [err, FT, lMtilde] = ...
-    ForceEquilibrium_FtildeState_ParamEst(a,fse,dfse,lMT,vMT,Fmax,lMopt_p,...
-    lTs_p,alpha_opt,Fvparam,Fpparam,Faparam,aTendon,shift)
+    parameterEstimation_ForceEquilibrium_FtildeState(a,fse,dfse,lMT,vMT,Fmax,...
+    lMopt_p,lTs_p,alpha_opt,Fvparam,Fpparam,Faparam,aTendon,shift)
 
 FMo = ones(size(a,1),1)*Fmax;
 lMo = ones(size(a,1),1)*lMopt_p;

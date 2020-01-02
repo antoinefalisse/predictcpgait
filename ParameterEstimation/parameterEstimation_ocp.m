@@ -1,16 +1,20 @@
-% Author: Lorenzo Pitto
-% Contributor: Antoine Falisse
-
-function [PARAMETERS,Activations,Residuals,Forces,Scale,lMtilde,Time,...
+%%  Muscle-tendon parameter optimal estimation
+% This script formulates and solves the optimal control problem underlying
+% the parameter estimation
+%
+% Author: Antoine Falisse and Lorenzo Pitto
+% Date: 1/2/2020
+%
+function [params,activations,residuals,forces,scale,lMtilde,time,...
     stats,extlMT]=...
-    parameterEstimation(JointMom,MuscMomArm,Fmax,EMGopt,indEMG2misc,...
+    parameterEstimation_ocp(JointMom,MuscMomArm,Fmax,EMGopt,indEMG2misc,...
     ParametersInit,MuscTenLen,MuscTenVel,SelectedMusclesInfo,modelName,...
     muscleNames,sides,Fvparam,Fpparam,Faparam,lMtilde_ext,W,...
     clinicalReport,idx_spanning,NindEMG2misc,idx_EMGscale2misc,...
     SelectedMusclesInfoSelSpanning,SelectedMusclesInfoOptSpanning,...
-    SelectedMusclesInfoSpanningSel,timeOpt,side_t,dev_p,ScaleMIN)
+    SelectedMusclesInfoSpanningSel,timeOpt,side_t,dev_p,EMGScale_min)
 
-%% Get extreme muscle-tendon lengths
+%% get muscle-tendon lengths at extremes of the range of motion
 Ntr = length(JointMom);
 for s = 1:length(sides)
     NMuscleAll = length(muscleNames.(sides{s}).s);
@@ -19,28 +23,24 @@ for s = 1:length(sides)
 end
 for t=1:Ntr
     % find the max/min MT-lengths to constrain the fiber lengths   
-    LMTMAX.(side_t{t}).s(1,idx_spanning{t}==1) = max([LMTMAX.(side_t{t}).s(1,idx_spanning{t}==1);MuscTenLen{t}],[],1);
-    LMTMIN.(side_t{t}).s(1,idx_spanning{t}==1) = min([LMTMIN.(side_t{t}).s(1,idx_spanning{t}==1);MuscTenLen{t}],[],1);
+    LMTMAX.(side_t{t}).s(1,idx_spanning{t}==1) = ...
+        max([LMTMAX.(side_t{t}).s(1,idx_spanning{t}==1);MuscTenLen{t}],[],1);
+    LMTMIN.(side_t{t}).s(1,idx_spanning{t}==1) = ...
+        min([LMTMIN.(side_t{t}).s(1,idx_spanning{t}==1);MuscTenLen{t}],[],1);
 end
-% ask how/whether to import data from the clinical exam
-% button = questdlg('Select method to import data from clinic exam','Import clinic exam','excel','manual','none','manual');
-button = 'excel'; % for now by default
-switch button
-    case 'excel'
-        xlsF = clinicalReport.xlsF;
-        xlsD = clinicalReport.xlsD;  
-        for s = 1:length(sides)
-            Side = 'L';
-            if strcmp(sides{s},'r')
-                Side = 'R';
-            end
-            Values = readClinicalExam([xlsD,xlsF],Side);
-            [LMT,~,NmuscCE] = getROM(modelName,Values,[],[],0,Side);
-            for q = 1:length(muscleNames.(sides{s}).s)
-                Im(q) = find(strcmpi(muscleNames.(sides{s}).s{q},NmuscCE));
-            end
-            LMTce.(sides{s}).s = LMT(Im)';
-        end
+xlsF = clinicalReport.xlsF;
+xlsD = clinicalReport.xlsD;  
+for s = 1:length(sides)
+    Side = 'L';
+    if strcmp(sides{s},'r')
+        Side = 'R';
+    end
+    Values = readClinicalExam([xlsD,xlsF],Side);
+    [LMT,~,NmuscCE] = getROM(modelName,Values,[],[],0,Side);
+    for q = 1:length(muscleNames.(sides{s}).s)
+        Im(q) = find(strcmpi(muscleNames.(sides{s}).s{q},NmuscCE));
+    end
+    LMTce.(sides{s}).s = LMT(Im)';
 end
 for s = 1:length(sides)
     figure,hold all
@@ -48,46 +48,54 @@ for s = 1:length(sides)
     set(gca,'XTickLabels',strrep(muscleNames.(sides{s}).s,'_',' '))
     set(gca,'XTick',1:length(muscleNames.(sides{s}).s))
     set(gca,'XTickLabelRotation',60)
-    title('Muscle-tendon lengths used for the tuning of the parameters')
+    title('Muscle-tendon lengths used for estmating the parameters')
     legend({'MAX from gait/ISA','MIN from gait/ISA','MAX from clinic exam'})
     % update the upper bounds with the values from the clinical exam
     LMTMAX.(sides{s}).s = max([LMTMAX.(sides{s}).s;LMTce.(sides{s}).s],[],1);
-    idx_lMopt_max.(sides{s}).s = find((LMTce.(sides{s}).s>0) & SelectedMusclesInfo{1}.Bool);
+    idx_lMopt_max.(sides{s}).s = ...
+        find((LMTce.(sides{s}).s>0) & SelectedMusclesInfo{1}.Bool);
 end
-
-%% CasADi functions
-NselMusc_all = length(SelectedMusclesInfo{1}.Index);
-CasADiFunctions
 
 %% Formulate problem    
 % Values for bounds
-ParMIN=                 0.5;
-ParMAX=                 2;
-% ScaleMIN=               0.01;
-ScaleMAX=               5;
-lMtildeMax=             lMtilde_ext.max;
-lMtildeMin=             lMtilde_ext.min;
+ParMIN = 0.5;
+ParMAX = 2;
+ScaleMAX = 5;
+lMtildeMax = lMtilde_ext.max;
+lMtildeMin = lMtilde_ext.min;
 % Set up CasADi/Opti
 import casadi.*
 opti = casadi.Opti(); % Create opti instance
 % EMG scale factors
 for s = 1:length(sides)
     scale.(sides{s}).s = opti.variable(NindEMG2misc);
-    opti.subject_to(ScaleMIN < scale.(sides{s}).s < ScaleMAX); 
+    opti.subject_to(EMGScale_min < scale.(sides{s}).s < ScaleMAX); 
     opti.set_initial(scale.(sides{s}).s,0);
     % Tendon slack lengths
     lTs.(sides{s}).s = opti.variable(length(SelectedMusclesInfo{1}.Index));
-    opti.subject_to(ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)'*ParMIN < lTs.(sides{s}).s < ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)'*ParMAX);
-    opti.set_initial(lTs.(sides{s}).s,ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)');
+    opti.subject_to(...
+        ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)' ...
+        *ParMIN < lTs.(sides{s}).s < ...
+        ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)' ...
+        *ParMAX);
+    opti.set_initial(lTs.(sides{s}).s,...
+        ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)');
     % Optimal fiber lengths
     lMopt.(sides{s}).s = opti.variable(length(SelectedMusclesInfo{1}.Index));
-    opti.subject_to(ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)'*ParMIN < lMopt.(sides{s}).s < ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)'*ParMAX); 
-    opti.set_initial(lMopt.(sides{s}).s,ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)');
+    opti.subject_to(...
+        ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)' ...
+        *ParMIN < lMopt.(sides{s}).s < ...
+        ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)' ...
+        *ParMAX); 
+    opti.set_initial(lMopt.(sides{s}).s,...
+        ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)');
 end
 % The parameters from both legs cannot deviate by more than +/- dev_p/100%
 if length(sides) > 1
-    opti.subject_to(1 - dev_p/100 < lTs.(sides{1}).s./lTs.(sides{2}).s < 1 + dev_p/100);
-    opti.subject_to(1 - dev_p/100 < lMopt.(sides{1}).s./lMopt.(sides{2}).s < 1 + dev_p/100);
+    opti.subject_to(1 - dev_p/100 < lTs.(sides{1}).s./lTs.(sides{2}).s < ...
+        1 + dev_p/100);
+    opti.subject_to(1 - dev_p/100 < lMopt.(sides{1}).s./lMopt.(sides{2}).s < ...
+        1 + dev_p/100);
 end
 
 % Collocation scheme
@@ -95,11 +103,11 @@ d = 3; % degree of interpolating polynomial
 method = 'radau'; % other option is 'legendre' (collocation scheme)
 [tau_root,C,D,~] = CollocationScheme(d,method);
 % Problem bounds
-a_min = 0; a_max = 1;               % bounds on muscle activation
-aT_min = -1; aT_max = 1;            % bounds on reserve actuators
-vA_min = -1/100; vA_max = 1/100;    % bounds on derivative of muscle activation (scaled)
-F_min = 0; F_max = 5;               % bounds on normalized tendon force
-dF_min = -100; dF_max = 100;        % bounds on derivative of normalized tendon force
+a_min = 0; a_max = 1; % bounds on muscle activation
+aT_min = -1; aT_max = 1; % bounds on reserve actuators
+vA_min = -1/100; vA_max = 1/100; % bounds on derivative of muscle activation
+F_min = 0; F_max = 5; % bounds on normalized tendon force
+dF_min = -100; dF_max = 100; % bounds on derivative of normalized tendon force
 % Initial components of cost
 C1 = 0;
 C2 = 0;
@@ -108,21 +116,20 @@ C4 = 0;
 C5 = 0;
 C6 = 0;
 C7 = 0;
-C8 = 0;
-C9 = 0;
 % Loop over trials
 Ntr = length(JointMom);
 for t=1:Ntr
     N = size(JointMom{t},1); % number of frames
     Nmusc = size(MuscMomArm{t},2); % number of spanning muscles
-    NselMusc = length(SelectedMusclesInfoSpanningSel{t}.Index); % number of spanning muscles whose parameters are optimized
+    % number of spanning muscles whose parameters are optimized
+    NselMusc = length(SelectedMusclesInfoSpanningSel{t}.Index); 
     Nj = size(JointMom{t},2); % number of joints
     lMT = MuscTenLen{t};
     vMT = MuscTenVel{t};
-    aTendon = 35*ones(length(SelectedMusclesInfoSpanningSel{t}.Index),1); % default values
+    aTendon = 35*ones(length(SelectedMusclesInfoSpanningSel{t}.Index),1); 
     shift = zeros(length(SelectedMusclesInfoSpanningSel{t}.Index),1);    
     % States
-    % Activations
+    % activations
     a{t} = opti.variable(Nmusc,N+1);
     amesh{t} = opti.variable(Nmusc,d*N);   
     opti.subject_to(a_min <= a{t} <= a_max);
@@ -137,7 +144,7 @@ for t=1:Ntr
     opti.set_initial(FTtilde{t},0.2);
     opti.set_initial(FTtildemesh{t},0.2);    
     % Controls
-    % Time derivative of muscle activations (states)
+    % time derivative of muscle activations (states)
     vA{t} = opti.variable(Nmusc,N);
     tact = 0.015; tdeact = 0.06;
     opti.subject_to(vA_min/tdeact < vA{t} < vA_max/tact);
@@ -148,7 +155,7 @@ for t=1:Ntr
     opti.subject_to(aT_min < aT{t} < aT_max);
     opti.set_initial(aT{t},0);
     scaling.aT = 150;
-    % Time derivative of muscle-tendon forces (states)
+    % time derivative of muscle-tendon forces (states)
     dFTtilde{t} = opti.variable(NselMusc,N);
     opti.subject_to(dF_min < dFTtilde{t} < dF_max);
     opti.set_initial(dFTtilde{t},0.01);
@@ -186,7 +193,7 @@ for t=1:Ntr
         FT = MX(Nmusc,1);
         idx_noFLV = 1:Nmusc;
         for tt = 1:length(SelectedMusclesInfoSpanningSel{t}.Index)
-            idx_noFLV(idx_noFLV==SelectedMusclesInfoSpanningSel{t}.Index(tt))=[];
+           idx_noFLV(idx_noFLV==SelectedMusclesInfoSpanningSel{t}.Index(tt))=[];
         end         
         if ~isempty(idx_noFLV)            
             FT(idx_noFLV) = ak(idx_noFLV).*(Fmax{t}(idx_noFLV))';
@@ -194,16 +201,19 @@ for t=1:Ntr
         % For other muscles, muscle force depends on FLV curves
         for m = 1:length(SelectedMusclesInfoSpanningSel{t}.Index) 
             [Hilldiff, FT(SelectedMusclesInfoSpanningSel{t}.Index(m)),~] = ...
-                ForceEquilibrium_FtildeState_ParamEst(...
+                parameterEstimation_ForceEquilibrium_FtildeState(...
                 ak(SelectedMusclesInfoSpanningSel{t}.Index(m)),...                 
                 FTtildek(m),...                    
                 dFTtildek(m)*scaling.dFTtilde,...                 
                 lMT(k,SelectedMusclesInfoSpanningSel{t}.Index(m)),...
                 vMT(k,SelectedMusclesInfoSpanningSel{t}.Index(m)),...
                 Fmax{t}(SelectedMusclesInfoSpanningSel{t}.Index(m)),...
-                lMopt.(side_t{t}).s(SelectedMusclesInfoSelSpanning{t}.Index(m)),...
-                lTs.(side_t{t}).s(SelectedMusclesInfoSelSpanning{t}.Index(m)),...
-                ParametersInit.(side_t{t}).PennAng(SelectedMusclesInfoOptSpanning{t}.Index(m)),...
+                lMopt.(side_t{t}).s(...
+                    SelectedMusclesInfoSelSpanning{t}.Index(m)),...
+                lTs.(side_t{t}).s(...
+                    SelectedMusclesInfoSelSpanning{t}.Index(m)),...
+                ParametersInit.(side_t{t}).PennAng(...
+                SelectedMusclesInfoOptSpanning{t}.Index(m)),...
                 Fvparam,Fpparam,Faparam,aTendon(m),shift(m)); 
             % Hill-equilibrium constraint
             opti.subject_to(Hilldiff == 0);
@@ -236,7 +246,7 @@ for t=1:Ntr
 end
 % get muscle fiber lengths at the maximum muscle-tendon lengths assuming
 % nul muscle-tendon velocities, nul muscle activations, and nul dfdt
-
+NselMusc_all = length(SelectedMusclesInfo{1}.Index);
 for s = 1:length(sides)    
     F_lMtilde_max{s} = opti.variable(NselMusc_all,1);
     opti.subject_to(F_min <= F_lMtilde_max{s} <= F_max);
@@ -247,12 +257,14 @@ for s = 1:length(sides)
     idx_side = find(strcmp(side_t,sides{s}),1,'first');    
     LMTMAX_side_temp = LMTMAX.(sides{s}).s(:,SelectedMusclesInfo{1}.Index);
     LMTMIN_side_temp = LMTMIN.(sides{s}).s(:,SelectedMusclesInfo{1}.Index);
-    lMopt_side_temp = lMopt.(sides{s}).s(SelectedMusclesInfoSelSpanning{1}.Index);
+    lMopt_side_temp = lMopt.(sides{s}).s(...
+        SelectedMusclesInfoSelSpanning{1}.Index);
     lTs_side_temp = lTs.(sides{s}).s(SelectedMusclesInfoSelSpanning{1}.Index);
     Fmax_side_temp = Fmax{idx_side}(SelectedMusclesInfoSpanningSel{1}.Index);
-    PennAngle_side_temp = ParametersInit.(sides{s}).PennAng(SelectedMusclesInfoOptSpanning{1}.Index);    
-    Lfibmax.(sides{s}).s = MX(1,NMuscleAll); % all for indices
-    Lfibmin.(sides{s}).s = MX(1,NselMusc_all); % only selected ones
+    PennAngle_side_temp = ParametersInit.(sides{s}).PennAng(...
+        SelectedMusclesInfoOptSpanning{1}.Index);    
+    Lfibmax.(sides{s}).s = MX(1,NMuscleAll);
+    Lfibmin.(sides{s}).s = MX(1,NselMusc_all);
 for m = 1:NselMusc_all
     % Upper extreme
     [Hilldiff_lMtilde_max, ~, ...
@@ -269,20 +281,18 @@ for m = 1:NselMusc_all
     opti.subject_to(Hilldiff_lMtilde_max == 0);
     opti.subject_to(Hilldiff_lMtilde_min == 0);
 end 
-% Cost function
-C6 = C6 + sumsqr(Lfibmax.(sides{s}).s(1,idx_lMopt_max.(sides{s}).s)-lMtildeMax); % deviation max fiber length to lMtildeMax  
+% deviation max fiber length to lMtildeMax  
+C6 = C6 + sumsqr(Lfibmax.(sides{s}).s(1,idx_lMopt_max.(sides{s}).s)-lMtildeMax); 
 % Constraints
-opti.subject_to(Lfibmax.(sides{s}).s(1,SelectedMusclesInfo{1}.Index)-lMtildeMax < 0);
+opti.subject_to(...
+    Lfibmax.(sides{s}).s(1,SelectedMusclesInfo{1}.Index)-lMtildeMax < 0);
 opti.subject_to(-Lfibmax.(sides{s}).s(1,SelectedMusclesInfo{1}.Index)+1< 0);
 opti.subject_to(Lfibmin.(sides{s}).s-1< 0);
 opti.subject_to(-Lfibmin.(sides{s}).s+lMtildeMin< 0);
 % Penalize the deviation for the linearly-scaled parameters
-% C7 = C7 + sumsqr(ParametersInit.(sides{s}).TenSlackLen(SelectedMusclesInfo{1}.Index)'-lTs.(side_t{t}).s);
-% C8 = C8 + sumsqr(ParametersInit.(sides{s}).OptFibLen(SelectedMusclesInfo{1}.Index)'-lMopt.(side_t{t}).s);
-C9 = C9 + sum(lMopt.(side_t{t}).s);
+C7 = C7 + sum(lMopt.(side_t{t}).s);
 end
-% J = C1*W.a+C2*W.aT+C3*W.vA+C4*W.dF+C5*W.EMG.all+C6*W.lMopt_max+W.pen*(C7+C8);
-J = C1*W.a+C2*W.aT+C3*W.vA+C4*W.dF+C5*W.EMG.all+C6*W.lMopt_max+W.lMopt*C9;
+J = C1*W.a+C2*W.aT+C3*W.vA+C4*W.dF+C5*W.EMG.all+C6*W.lMopt_max+W.lMopt*C7;
 opti.minimize(J);
 % Settings
 optionssol.ipopt.hessian_approximation = 'limited-memory';
@@ -299,30 +309,38 @@ stats = opti.stats();
 for s = 1:length(sides)
     lMopt_opt.(sides{s}) = sol.value(lMopt.(sides{s}).s);
     lTs_opt.(sides{s}) = sol.value(lTs.(sides{s}).s);
-    PARAMETERS.(sides{s}) = ParametersInit.(sides{s});
-    PARAMETERS.(sides{s}).OptFibLen(1,SelectedMusclesInfo{1}.Index) = lMopt_opt.(sides{s});
-    PARAMETERS.(sides{s}).TenSlackLen(1,SelectedMusclesInfo{1}.Index) = lTs_opt.(sides{s});
-    Scale.(sides{s}) = sol.value(scale.(sides{s}).s);    
+    params.(sides{s}) = ParametersInit.(sides{s});
+    params.(sides{s}).OptFibLen(1,SelectedMusclesInfo{1}.Index) = ...
+        lMopt_opt.(sides{s});
+    params.(sides{s}).TenSlackLen(1,SelectedMusclesInfo{1}.Index) = ...
+        lTs_opt.(sides{s});
+    scale.(sides{s}) = sol.value(scale.(sides{s}).s);    
 end
 for t=1:Ntr
-    Activations{t}  = sol.value(a{t})';
-    Residuals{t}    = sol.value(aT{t})'*scaling.aT;
+    activations{t} = sol.value(a{t})';
+    residuals{t} = sol.value(aT{t})'*scaling.aT;
     tgrid = linspace(timeOpt{t}(1),timeOpt{t}(2),N+1);
     dtime = zeros(1,d+1);
     for i = 1:d+1
         dtime(i)=tau_root(i)*((timeOpt{t}(2)-timeOpt{t}(1))/N);
     end
-    Time{t}         = tgrid;
-    Forces{t}       = sol.value(FTtilde{t})'.*repmat(Fmax{t}(SelectedMusclesInfoSpanningSel{t}.Index),size(sol.value(FTtilde{t})',1),1);
-    lMTinterp       = MuscTenLen{t}(:,SelectedMusclesInfoSpanningSel{t}.Index);    
+    time{t} = tgrid;
+    forces{t} = sol.value(FTtilde{t})'.*repmat(...
+        Fmax{t}(SelectedMusclesInfoSpanningSel{t}.Index),...
+        size(sol.value(FTtilde{t})',1),1);
+    lMTinterp = MuscTenLen{t}(:,SelectedMusclesInfoSpanningSel{t}.Index);    
     params_temp = zeros(4,length(SelectedMusclesInfoSelSpanning{t}.Index));   
-    params_temp(2,:) = lMopt_opt.(side_t{t})(SelectedMusclesInfoSelSpanning{t}.Index);
-    params_temp(3,:) = lTs_opt.(side_t{t})(SelectedMusclesInfoSelSpanning{t}.Index);
-    params_temp(4,:) = ParametersInit.(side_t{t}).PennAng(SelectedMusclesInfoOptSpanning{t}.Index);
-    aTendon = 35; % default values
+    params_temp(2,:) = ...
+        lMopt_opt.(side_t{t})(SelectedMusclesInfoSelSpanning{t}.Index);
+    params_temp(3,:) = ...
+        lTs_opt.(side_t{t})(SelectedMusclesInfoSelSpanning{t}.Index);
+    params_temp(4,:) = ParametersInit.(side_t{t}).PennAng(...
+        SelectedMusclesInfoOptSpanning{t}.Index);
+    aTendon = 35; % default
     shift = 0;       
     Ftemp = sol.value(FTtilde{t})';
-    [~,lMtilde{t}] = FiberLength_TendonForce_tendon(Ftemp(1:N,:),params_temp,lMTinterp,aTendon,shift);
+    [~,lMtilde{t}] = FiberLength_TendonForce_tendon(Ftemp(1:N,:),...
+        params_temp,lMTinterp,aTendon,shift);
 end  
 for s = 1:length(sides)
     extlMT.LMTMAX.(sides{s}) = LMTMAX.(sides{s}).s;
@@ -333,5 +351,4 @@ for s = 1:length(sides)
     extlMT.F_lMtilde_min_opt.(sides{s}) = sol.value(F_lMtilde_min{s});
     extlMT.LMTce.(sides{s}) = LMTce.(sides{s}).s;
 end
-
 end

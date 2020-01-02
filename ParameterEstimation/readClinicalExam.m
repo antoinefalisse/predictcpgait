@@ -1,4 +1,9 @@
-function [varargout]=readClinicalExam(varargin)
+%%  Clinical exam
+%
+% Author: Lorenzo Pitto
+% Date: 1/2/2020
+%
+function [varargout] = readClinicalExam(varargin)
 fname                   =   varargin{1};
 Side                    =   varargin{2};
 % define the correspondences between the names in the GUI and in the excel filie

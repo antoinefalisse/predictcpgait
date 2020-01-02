@@ -1,3 +1,8 @@
+%%  Range of motion
+%
+% Author: Lorenzo Pitto
+% Date: 1/2/2020
+%
 function [LMTout,PasMom,AllMuscles]=getROM(modelName,Values,Muscles,LUT,USEPASSIVEMOMENTS,Side)
 % 
 % computes the range of muscle lengths according to the data from the clinical exam 
