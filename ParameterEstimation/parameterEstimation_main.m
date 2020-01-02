@@ -18,10 +18,10 @@ close all
 clc
 
 %% User settings
-solveProblem = 1;   % set to 1 to solve problem
+solveProblem = 0;   % set to 1 to solve problem
 saveResults = 0;    % set to 1 to save results
-saveParameters = 1; % set to 1 to save MT-parameters
-showResults = 0;    % set to 1 to plot results
+saveParameters = 0; % set to 1 to save MT-parameters
+showResults = 1;    % set to 1 to plot results
 
 %% Problem settings
 subject = 'subject1';  
@@ -50,7 +50,7 @@ pathMain = pwd;
 pathOpenSimModel = [pathRepo,'/OpenSimModel'];
 pathCollocationScheme = [pathRepo,'/CollocationScheme'];
 addpath(genpath(pathCollocationScheme));
-pathResults = [pathMain,'/Results'];
+pathResults = [pathMain,'/Results/',subject];
 pathMuscleModel = [pathRepo,'/MuscleModel/'];
 % Adjusted weights to preserve sum=1 when increasing weight on short
 % fibers. The adjustment accounts for the magnitude of the weight factors.
