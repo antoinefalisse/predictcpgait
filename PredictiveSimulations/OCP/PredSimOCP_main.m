@@ -49,6 +49,8 @@ writeMotion_l   = num_set(7); % set to 1 to write motion file starting at left h
 % Paths
 pathmain = pwd;
 [pathPredictiveSimulations,~,~] = fileparts(pathmain);
+p = mfilename('fullpath');
+[~,namescript,~] = fileparts(p);
 [pathRepo,~,~] = fileparts(pathPredictiveSimulations);
 pathSettings = [pathPredictiveSimulations,'/Settings'];
 addpath(genpath(pathSettings));
@@ -145,7 +147,7 @@ jointi.res_gpi = jointi.pelvis.list:jointi.pelvis.tz; % ground-pelvis
 nq.res = length(jointi.resi); % all 
 nq.res_gp = length(jointi.res_gpi); % ground-pelvis
 nq.res_bgp = nq.res-nq.res_gp;% all but ground-pelvis
-nq.res_leg = 6; % #joints needed for polynomials
+nq.leg = 6; % #joints needed for polynomials
 nq.res_trunk = length(jointi.res_trunki); % trunk
 % In the external function, joint positions and velocities are intertwined.
 % Joint positions are at locations 1:2:end.
@@ -225,13 +227,13 @@ tl = load([pathpolynomial,'muscle_spanning_joint_INFO_',subject,'_r.mat']);
 % but we maintain this feature in case it is of interest for future users.
 % Indices of muscles whose FLV relationships are not used
 muscleNames_noFLV = {};
-NMuscle_noFLV_r  = length(muscleNames_noFLV); % one side
-musi_noFLV_r = zeros(1,NMuscle_noFLV_r);
-for i = 1:NMuscle_noFLV_r
+NMuscles_noFLV_r  = length(muscleNames_noFLV); % one side
+musi_noFLV_r = zeros(1,NMuscles_noFLV_r);
+for i = 1:NMuscles_noFLV_r
     musi_noFLV_r(i) = find(strcmp(muscleNames,muscleNames_noFLV{i}));
 end
 musi_noFLV = [musi_noFLV_r,musi_noFLV_r+NMuscles/2]; % both sides
-NMuscles_noFLV = 2*NMuscle_noFLV_r; % both sides
+NMuscles_noFLV = 2*NMuscles_noFLV_r; % both sides
 NMuscles_FLV = NMuscles-NMuscles_noFLV;
 musi_FLV_r = musi;
 musi_FLV_r(musi_noFLV_r) = [];
@@ -252,17 +254,17 @@ pctsts = [pctst;pctst];
 %% Spasticity
 muscleNames_Spas = ...
     {'bi_fem_lh_r','semimem_r','semiten_r','gas_med_r','gas_lat_r'};
-NMuscle_Spas_r  = length(muscleNames_Spas); % one side
-musi_Spas_r = zeros(1,NMuscle_Spas_r);
-musi_Spas_In_FLV_r = zeros(1,NMuscle_Spas_r);
-for i = 1:NMuscle_Spas_r
+NMuscles_Spas_r  = length(muscleNames_Spas); % one side
+musi_Spas_r = zeros(1,NMuscles_Spas_r);
+musi_Spas_In_FLV_r = zeros(1,NMuscles_Spas_r);
+for i = 1:NMuscles_Spas_r
     musi_Spas_r(i) = find(strcmp(muscleNames,muscleNames_Spas{i}));
     musi_Spas_In_FLV_r(i) = ...
         find(strcmp(muscleNames(musi_FLV_r),muscleNames_Spas{i}));    
 end
 musi_Spas = [musi_Spas_r,musi_Spas_r+NMuscles/2]; % both sides
 musi_Spas_In_FLV = [musi_Spas_In_FLV_r,musi_Spas_In_FLV_r+NMuscles_FLV/2];
-NMuscle_Spas = 2*NMuscle_Spas_r; % both sides
+NMuscles_Spas = 2*NMuscles_Spas_r; % both sides
 musi_noSpas = [musi,musi+NMuscles/2];
 musi_noSpas(musi_Spas) = [];
 % Load feedback / spasticity model parameters in case spasticity is taken
@@ -342,8 +344,6 @@ end
 % We create several CasADi functions for later use
 pathCasADiFunctions = [pathPredictiveSimulations,'/CasADiFunctions'];
 addpath(genpath(pathCasADiFunctions));
-pathContactModel = [pathPredictiveSimulations,'/Contact'];
-addpath(genpath(pathContactModel));
 % We load some variables for the polynomial approximations
 load([pathpolynomial,'/muscle_spanning_joint_INFO_',subject,'_r.mat']);
 load([pathpolynomial,'/muscle_spanning_joint_INFO_',subject,'_l.mat']);
@@ -353,72 +353,66 @@ load([pathpolynomial,'/MuscleInfo_',subject,'_l.mat']);
 % the muscles from both legs, since we assume bilateral symmetry, but want
 % all muscles from the back (indices 47:49).
 musi_pol = musi;
-NMuscle_pol = NMuscles/2;
-CasADiFunctions_tracking_TD_MRI_FLV_spas
+NMuscles_pol = NMuscles/2;
+PredSimOCP_CasADiFunctions
 
 %% Passive joint torques
-% We extract the parameters for the passive torques of the lower limbs and
-% the trunk
+% Parameters for the passive torques of the lower limbs and trunk
 pathPassiveTorques = [pathPredictiveSimulations,'/PassiveTorques'];
 addpath(genpath(pathPassiveTorques));
 PassiveTorquesData
 
-%% Experimental data
+%% Data from a tracking simulation of a TD walking trial.
+% This data is used for settings bounds, initial guesses, and as part of the
+% optimal control problem in some cases. This data represents what is
+% achievable by the model in terms of tracking experimental data with null
+% perlvis residuals.
 joints = {'lower_torso_RX','lower_torso_RY','lower_torso_RZ',...
     'lower_torso_TX','lower_torso_TY','lower_torso_TZ','hip_flex_l',...
     'hip_add_l','hip_rot_l','hip_flex_r','hip_add_r','hip_rot_r',...
     'knee_flex_l','knee_flex_r','ankle_flex_l','ankle_flex_r',...
     'subt_angle_l','subt_angle_r','lumbar_pitch','lumbar_roll',...
     'lumbar_yaw'};
-pathVariousFunctions = [pathPredictiveSimulations,'/VariousFunctions'];
-addpath(genpath(pathVariousFunctions));
+pathReferenceTracking = [pathOpenSimModel,'ReferenceTracking'];
+load([pathReferenceTracking,'/ReferenceTracking.mat']);
 
 Qs = struct('mp',[]); 
 GRF = struct('mp',[]); 
 ID = struct('mp',[]);
-
-trackSimRes = 93;
-p = mfilename('fullpath');
-[~,namescript,~] = fileparts(p);
-pathresults = [pathPredictiveSimulations,'/Results'];
-load([pathresults,'/',namescript,'/Results_tracking.mat']);
 for mpi = 1:NPhases
-    ResultsToTrack = Results_tracking.(['Case_',num2str(trackSimRes)]);
-    % Re-create the joint angles
-    Qs_temp = ResultsToTrack.Qs_opt(mpi).mp;
-    % TODO
-    Qs_temp(:,end+1:end+3) = zeros(size(Qs_temp,1),3);
+    % Joint angles
+    Qs_temp = ReferenceTracking.Results.Qs_opt(mpi).mp;
+    Qs_temp(:,end+1:end+nq.res_trunk) = zeros(size(Qs_temp,1),nq.res_trunk);
     Qs_temp(:,jointi.res_roti) = Qs_temp(:,jointi.res_roti)*pi/180;
-    % Re-create the ground reaction forces
-    GRF_temp = ResultsToTrack.GRFs_opt(mpi).mp;
-    % Re-create the ground reaction torques
-    GRM_temp = ResultsToTrack.GRMs_opt(mpi).mp;
-    % Re-create the torques
-    ID_temp = ResultsToTrack.Ts_opt(mpi).mp;
-    % TODO
-    ID_temp(:,end+1:end+3) = zeros(size(ID_temp,1),3);
+    % Ground reaction forces
+    GRF_temp = ReferenceTracking.Results.GRFs_opt(mpi).mp;
+    % Ground reaction moments
+    GRM_temp = ReferenceTracking.Results.GRMs_opt(mpi).mp;
+    % Joint torques
+    ID_temp = ReferenceTracking.Results.Ts_opt(mpi).mp;
+    ID_temp(:,end+1:end+nq.res_trunk) = zeros(size(ID_temp,1),nq.res_trunk);
     % Apply a low-pass filter to the trajectories
     order = 4;
     cutoff_low = 20;
-    fs=1/mean(diff(ResultsToTrack.tgrid(mpi).mp));
+    fs=1/mean(diff(ReferenceTracking.Results.tgrid(mpi).mp));
     [af,bf] = butter(order/2,cutoff_low./(0.5*fs),'low');
     Qs_tempfilt = filtfilt(af,bf,Qs_temp);  
-    Qs_temp_filt = [ResultsToTrack.tgrid(mpi).mp,Qs_tempfilt];
+    Qs_temp_filt = [ReferenceTracking.Results.tgrid(mpi).mp,Qs_tempfilt];
     GRF_tempfilt = filtfilt(af,bf,GRF_temp);  
-    GRF_temp_filt = [ResultsToTrack.tgrid(mpi).mp,GRF_tempfilt];
+    GRF_temp_filt = [ReferenceTracking.Results.tgrid(mpi).mp,GRF_tempfilt];
     GRM_tempfilt = filtfilt(af,bf,GRM_temp);  
-    GRM_temp_filt = [ResultsToTrack.tgrid(mpi).mp,GRM_tempfilt];
+    GRM_temp_filt = [ReferenceTracking.Results.tgrid(mpi).mp,GRM_tempfilt];
     ID_tempfilt = filtfilt(af,bf,ID_temp);  
-    ID_temp_filt = [ResultsToTrack.tgrid(mpi).mp,ID_tempfilt];       
+    ID_temp_filt = [ReferenceTracking.Results.tgrid(mpi).mp,ID_tempfilt];       
     % Adjust the time vector (shorter because N controls and N+1 states)
-    time_opt(mpi).mp(1) = ResultsToTrack.tgrid(mpi).mp(1);
-    time_opt(mpi).mp(2) = ResultsToTrack.tgrid(mpi).mp(end);                
+    time_opt(1) = ReferenceTracking.Results.tgrid(mpi).mp(1);
+    time_opt(2) = ReferenceTracking.Results.tgrid(mpi).mp(end);                
     % Interpolation to number of mesh intervals
-    step = (time_opt(mpi).mp(2)-time_opt(mpi).mp(1))/(N-1);
-    interval = time_opt(mpi).mp(1):step:time_opt(mpi).mp(2);        
+    step = (time_opt(2)-time_opt(1))/(N-1);
+    interval = time_opt(1):step:time_opt(2);        
     Qs(mpi).mp.allinterpfilt = ...
         interp1(Qs_temp_filt(:,1),Qs_temp_filt,interval);
-    Qs(mpi).mp.colheaders = ['Time',Results_tracking.colheaders.joints];
+    Qs(mpi).mp.colheaders = ['Time',ReferenceTracking.colheaders.joints];
     ID(mpi).mp.allinterp = interp1(ID_temp_filt(:,1),ID_temp_filt,interval);        
     GRF(mpi).mp.val.allinterp = ...
         interp1(GRF_temp_filt(:,1),GRF_temp_filt,interval);
@@ -427,82 +421,66 @@ for mpi = 1:NPhases
         interp1(GRM_temp_filt(:,1),GRM_temp_filt,interval);           
 end  
 
-
 %% Bounds
 pathBounds = [pathPredictiveSimulations,'/Bounds'];
 addpath(genpath(pathBounds));
+pathVariousFunctions = [pathRepo,'/VariousFunctions'];
+addpath(genpath(pathVariousFunctions));
 bounds = struct('mp',[]); 
 scaling = struct('mp',[]); 
 Qs_CP = struct('mp',[]);
-trunki = 1;
 for mpi = 1:NPhases
     % Bounds accounting for both TD and CD walking patterns
-    pathIK = [pathData,'/KS/KS_walking_average_r_MRI_extROM.mot'];
-    Qs_CP(mpi).mp = getIK_MRI(pathIK,joints);           
+    pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average.mot'];
+    Qs_CP(mpi).mp = getIK(pathIK,joints);           
     step = (Qs_CP(mpi).mp.time(end)-Qs_CP(mpi).mp.time(1))/(N-1);
     interval = Qs_CP(mpi).mp.time(1):step:Qs_CP(mpi).mp.time(end);        
     Qs_CP(mpi).mp.allinterpfilt = interp1(Qs_CP(mpi).mp.allfilt(:,1),...
         Qs_CP(mpi).mp.allfilt,interval);  
-    [bounds(mpi).mp,scaling(mpi).mp] = ...
-        getBounds_tracking_TD_MRI_FLV_Syn3_spas_TDCP(Qs(mpi).mp,...
-        Qs_CP(mpi).mp,NMuscles,NMuscles_FLV,nq,jointi,GRF(mpi).mp,N,NSyn,...
-        synW,dev,NMuscle_Spas,trunki,W);
+    [bounds(mpi).mp,scaling(mpi).mp] = getBounds(Qs(mpi).mp,Qs_CP(mpi).mp,...
+        NMuscles,NMuscles_FLV,nq,jointi,GRF(mpi).mp,N,NSyn,NMuscles_Spas);
 end
 
 %% Initial guess
-pathIG = [pathPredictiveSimulations,'/IG'];
-addpath(genpath(pathIG));
+pathBounds = [pathPredictiveSimulations,'/Guess'];
+addpath(genpath(pathBounds));
 % Data-informed initial guess
 guess = struct('mp',[]); 
 Qs_CP = struct('mp',[]);
 Qs_ig = struct('mp',[]);
 for mpi = 1:NPhases
-    if IGi == 1 
-        % IG is walking pattern to track (TD)
-        guess(mpi).mp = getGuess_DI_tracking_TD_MRI_FLV_Syn2_spas(...
-            Qs(mpi).mp,nq,N,NMuscles,NMuscles_FLV,jointi,scaling(mpi).mp,...
-            NSyn,synW,NMuscle_Spas,trunki);
-    elseif IGi == 2 
-        guess(mpi).mp = getGuess_QR_tracking_TD_MRI_FLV_Syn_spas(nq,N,...
-            NMuscles,NMuscles_FLV,jointi,scaling(mpi).mp,NSyn,gaitSpeed,trunki,...
-            NMuscle_Spas);
-    elseif IGi == 3
+    if IGi == 1
         % IG is CP walking pattern
-        pathIK = [pathData,'/KS/KS_walking_average_r.mot'];
-        Qs_CP(mpi).mp = getIK_MRI(pathIK,joints);           
+        pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average.mot'];
+        Qs_CP(mpi).mp = getIK(pathIK,joints);           
         step = (Qs_CP(mpi).mp.time(end)-Qs_CP(mpi).mp.time(1))/(N-1);
         interval = Qs_CP(mpi).mp.time(1):step:Qs_CP(mpi).mp.time(end);        
         Qs_CP(mpi).mp.allinterpfilt = interp1(Qs_CP(mpi).mp.allfilt(:,1),...
             Qs_CP(mpi).mp.allfilt,interval);        
-        guess(mpi).mp = getGuess_DI_tracking_TD_MRI_FLV_Syn3_spas(...
-            Qs_CP(mpi).mp,nq,N,NMuscles,NMuscles_FLV,jointi,scaling(mpi).mp,...
-            NSyn,synW,NMuscle_Spas,trunki,W);   
-    elseif IGi == 4 
-        % IG is walking pattern to track (TD)
-        guess(mpi).mp = getGuess_DI_tracking_TD_MRI_FLV_Syn3_spas(...
-            Qs(mpi).mp,nq,N,NMuscles,NMuscles_FLV,jointi,scaling(mpi).mp,...
-            NSyn,synW,NMuscle_Spas,trunki,W);
-    elseif IGi == 5
-        % IG is certain simulated movement        
+        guess(mpi).mp = getGuess(Qs_CP(mpi).mp,nq,N,NMuscles,NMuscles_FLV,...
+            jointi,scaling(mpi).mp,NSyn,NMuscles_Spas);   
+    elseif IGi == 2
+        % IG is TD walking pattern
+        guess(mpi).mp = getGuess(Qs(mpi).mp,nq,N,NMuscles,NMuscles_FLV,...
+            jointi,scaling(mpi).mp,NSyn,NMuscles_Spas);
+    elseif IGi == 3
+        % IG is existing simulated movement        
         savename_ig = ['_c',num2str(IGc),'a'];
         pathIK_ig = [pathPredictiveSimulations,'/Results/',namescript,...
-            '/IK',savename_ig,'_HS.mot'];
+            '/IK',savename_ig,'.mot'];
         Qs_ig(mpi).mp = getIK_MRI(pathIK_ig,joints);           
         step = (Qs_ig(mpi).mp.time(end)-Qs_ig(mpi).mp.time(1))/(N-1);        
         interval = Qs_ig(mpi).mp.time(1):step:Qs_ig(mpi).mp.time(end);        
         Qs_ig(mpi).mp.allinterpfilt = interp1(Qs_ig(mpi).mp.allfilt(:,1),...
             Qs_ig(mpi).mp.allfilt,interval);  
-        guess(mpi).mp =  getGuess_DI_tracking_TD_MRI_FLV_Syn3_spas(...
-            Qs_ig(mpi).mp,nq,N,NMuscles,NMuscles_FLV,jointi,scaling(mpi).mp,...
-            NSyn,synW,NMuscle_Spas,trunki,W);  
+        guess(mpi).mp =  getGuess(Qs_ig(mpi).mp,nq,N,NMuscles,NMuscles_FLV,...
+            jointi,scaling(mpi).mp,NSyn,NMuscles_Spas);  
     end
 end
 % This allows visualizing the initial guess and the bounds
 if checkBoundsIG
-    pathPlots = [pathPredictiveSimulations,'/Plots'];
-    addpath(genpath(pathPlots));
     for mpi = 1:NPhases
-        plot_BoundsVSInitialGuess_tracking_TD_env_MRI_MP_FLV
+        plot_BoundsVSInitialGuess
     end
 end
 
@@ -560,13 +538,13 @@ if solveProblem
         w0              = [w0;  guess(mpi).mp.QsQdots(1,:)']; 
         if spasi == 1
             % Muscle activations from muscle-tendon force feedback
-            a_Ff0           = MX.sym('a_Ff0',NMuscle_Spas);
+            a_Ff0           = MX.sym('a_Ff0',NMuscles_Spas);
             w               = [w {a_Ff0}];
             lbw             = [lbw; bounds(mpi).mp.a_Ff.lower'];
             ubw             = [ubw; bounds(mpi).mp.a_Ff.upper'];
             w0              = [w0;  guess(mpi).mp.a_Ff(1,:)'];    
             % Muscle activations from time derivative of muscle-tendon force feedback
-            a_dFf0           = MX.sym('a_dFf0',NMuscle_Spas);
+            a_dFf0           = MX.sym('a_dFf0',NMuscles_Spas);
             w               = [w {a_dFf0}];
             lbw             = [lbw; bounds(mpi).mp.a_dFf.lower'];
             ubw             = [ubw; bounds(mpi).mp.a_dFf.upper'];
@@ -666,7 +644,7 @@ if solveProblem
                 % Muscle activations from muscle-tendon force feedback
                 a_Ffkj = {};
                 for j=1:d
-                    a_Ffkj{j}= MX.sym(['	a_Ff_' num2str(k) '_' num2str(j)],NMuscle_Spas);
+                    a_Ffkj{j}= MX.sym(['	a_Ff_' num2str(k) '_' num2str(j)],NMuscles_Spas);
                     w       = {w{:}, a_Ffkj{j}};
                     lbw     = [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw     = [ubw; bounds(mpi).mp.a_Ff.upper'];
@@ -675,7 +653,7 @@ if solveProblem
                 % Muscle activations from time derivative of muscle-tendon force feedback
                 a_dFfkj = {};
                 for j=1:d
-                    a_dFfkj{j}= MX.sym(['	a_dFf_' num2str(k) '_' num2str(j)],NMuscle_Spas);
+                    a_dFfkj{j}= MX.sym(['	a_dFf_' num2str(k) '_' num2str(j)],NMuscles_Spas);
                     w       = {w{:}, a_dFfkj{j}};
                     lbw     = [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw     = [ubw; bounds(mpi).mp.a_dFf.upper'];
@@ -894,15 +872,15 @@ if solveProblem
                         FTtildek_nsc(musi_Spas_In_FLV),tauFf.all,gFf.all,bspas,...
                         threshold_Ff_gait.all);
                     g       = {g{:}, (h*da_Ffdt - a_Ffp)};
-                    lbg     = [lbg; zeros(NMuscle_Spas,1)];
-                    ubg     = [ubg; zeros(NMuscle_Spas,1)]; 
+                    lbg     = [lbg; zeros(NMuscles_Spas,1)];
+                    ubg     = [ubg; zeros(NMuscles_Spas,1)]; 
                     % Time derivative of force feedback feedback            
                     da_dFfdt = f_spindleDynamics(a_dFfkj{j},...
                         dFTtildek(musi_Spas_In_FLV).*scaling(mpi).mp.dFTtilde,...
                         taudFf.all,gdFf.all,bspas,threshold_dFf_gait.all);
                     g       = {g{:}, (h*da_dFfdt - a_dFfp)};
-                    lbg     = [lbg; zeros(NMuscle_Spas,1)];
-                    ubg     = [ubg; zeros(NMuscle_Spas,1)];
+                    lbg     = [lbg; zeros(NMuscles_Spas,1)];
+                    ubg     = [ubg; zeros(NMuscles_Spas,1)];
                 end
                 % Skeleton dynamics (implicit formulation)        
                 xj_nsc  = [...
@@ -1113,8 +1091,8 @@ if solveProblem
             % Total activations (supra-spinal and reflexes) cannot exceed 1
             if spasi == 1
                 g   = {g{:},a_totk(musi_Spas)};
-                lbg = [lbg; zeros(NMuscle_Spas,1)];
-                ubg = [ubg; ones(NMuscle_Spas,1)]; 
+                lbg = [lbg; zeros(NMuscles_Spas,1)];
+                ubg = [ubg; ones(NMuscles_Spas,1)]; 
             end
             % Constraints to prevent parts of the skeleton to penetrate each
             % other.
@@ -1152,14 +1130,14 @@ if solveProblem
                 w0 = [w0;  guess(mpi).mp.QsQdots(k+2,:)'];
                 if spasi == 1
                     % Muscle activations from muscle-tendon force feedback
-                    a_Ffk	= MX.sym(['a_Ff_' num2str(k+1)],NMuscle_Spas);
+                    a_Ffk	= MX.sym(['a_Ff_' num2str(k+1)],NMuscles_Spas);
                     w       = {w{:}, a_Ffk};
                     lbw 	= [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw 	= [ubw; bounds(mpi).mp.a_Ff.upper'];
                     w0  	= [w0;  guess(mpi).mp.a_Ff(k+2,:)'];
                     % Muscle activations from time derivative of muscle-tendon
                     % force feedback
-                    a_dFfk	= MX.sym(['a_dFf_' num2str(k+1)],NMuscle_Spas);
+                    a_dFfk	= MX.sym(['a_dFf_' num2str(k+1)],NMuscles_Spas);
                     w       = {w{:}, a_dFfk};
                     lbw  	= [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw  	= [ubw; bounds(mpi).mp.a_dFf.upper'];
@@ -1196,14 +1174,14 @@ if solveProblem
                 w0 = [w0;  guess(mpi).mp.QsQdots(end,:)'];
                 if spasi == 1
                     % Muscle activations from muscle-tendon force feedback
-                    a_Ffk	= MX.sym(['a_Ff_' num2str(k+1)],NMuscle_Spas);
+                    a_Ffk	= MX.sym(['a_Ff_' num2str(k+1)],NMuscles_Spas);
                     w       = {w{:}, a_Ffk};
                     lbw   	= [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw    	= [ubw; bounds(mpi).mp.a_Ff.upper'];
                     w0    	= [w0;  guess(mpi).mp.a_Ff(end,:)'];
                     % Muscle activations from time derivative of muscle-tendon
                     % force feedback
-                    a_dFfk 	= MX.sym(['a_dFf_' num2str(k+1)],NMuscle_Spas);
+                    a_dFfk 	= MX.sym(['a_dFf_' num2str(k+1)],NMuscles_Spas);
                     w     	= {w{:}, a_dFfk};
                     lbw    	= [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw    	= [ubw; bounds(mpi).mp.a_dFf.upper'];
@@ -1226,8 +1204,8 @@ if solveProblem
             ubg = [ubg; zeros(2*nq.res + NMact + NMuscles_FLV,1)]; 
             if spasi == 1
                 g   = {g{:}, a_Ffk_end-a_Ffk, a_dFfk_end-a_dFfk};
-                lbg = [lbg; zeros(NMuscle_Spas + NMuscle_Spas,1)];
-                ubg = [ubg; zeros(NMuscle_Spas + NMuscle_Spas,1)];   
+                lbg = [lbg; zeros(NMuscles_Spas + NMuscles_Spas,1)];
+                ubg = [ubg; zeros(NMuscles_Spas + NMuscles_Spas,1)];   
             end
             g   = {g{:}, a_bk_end-a_bk};
             lbg = [lbg; zeros(nq.res_trunk,1)];
@@ -1334,7 +1312,7 @@ if analyseResults
         NParameters = NParameters + NMuscles*NSyn;   
     end
     if spasi == 1
-        NStates = NStates+2*NMuscle_Spas;
+        NStates = NStates+2*NMuscles_Spas;
     end    
     NControls = NControls+nq.res_trunk;
     NStates = NStates+nq.res_trunk;
@@ -1400,13 +1378,13 @@ if analyseResults
         if spasi == 1
             % Muscle activations from muscle-tendon force feedback and time derivative 
             % of muscle-tendon force feedback
-            a_Ff_opt(mpi).mp = zeros(N+1,NMuscle_Spas); 
-            a_dFf_opt(mpi).mp = zeros(N+1,NMuscle_Spas);
-            for i = 1:NMuscle_Spas
+            a_Ff_opt(mpi).mp = zeros(N+1,NMuscles_Spas); 
+            a_dFf_opt(mpi).mp = zeros(N+1,NMuscles_Spas);
+            for i = 1:NMuscles_Spas
                 a_Ff_opt(mpi).mp(:,i) =  w_opt(tempi+i:Nwl:Nw_acc+Nw);
-                a_dFf_opt(mpi).mp(:,i) = w_opt(tempi+NMuscle_Spas+i:Nwl:Nw_acc+Nw);
+                a_dFf_opt(mpi).mp(:,i) = w_opt(tempi+NMuscles_Spas+i:Nwl:Nw_acc+Nw);
             end 
-            tempi = tempi + 2*NMuscle_Spas;            
+            tempi = tempi + 2*NMuscles_Spas;            
         end
         % Back activations
         a_b_opt(mpi).mp = zeros(N+1,nq.res_trunk);
@@ -2041,11 +2019,11 @@ if analyseResults
         a_tot_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_tot_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
         % Muscle activations
         if spasi == 1
-            a_Ff_opt_unsc_GC(mpi).mp = zeros(N,NMuscle_Spas);    
+            a_Ff_opt_unsc_GC(mpi).mp = zeros(N,NMuscles_Spas);    
             a_Ff_opt_unsc_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_Ff_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
             a_Ff_opt_unsc_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_Ff_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
             % Muscle activations
-            a_dFf_opt_unsc_GC(mpi).mp = zeros(N,NMuscle_Spas);    
+            a_dFf_opt_unsc_GC(mpi).mp = zeros(N,NMuscles_Spas);    
             a_dFf_opt_unsc_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_dFf_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
             a_dFf_opt_unsc_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_dFf_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
         end
@@ -2165,11 +2143,11 @@ if analyseResults
         a_tot_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_tot_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         % Muscle activations
         if spasi == 1
-            a_Ff_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscle_Spas);    
+            a_Ff_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
             a_Ff_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_Ff_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
             a_Ff_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_Ff_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
             % Muscle activations
-            a_dFf_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscle_Spas);    
+            a_dFf_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
             a_dFf_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_dFf_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
             a_dFf_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_dFf_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         end
