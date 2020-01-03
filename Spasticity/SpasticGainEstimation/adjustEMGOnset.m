@@ -1,48 +1,37 @@
-% This scripts allows the user to manually adjust the EMG onset, which is
+% This scripts allows users to manually adjust the EMG onset, which is
 % sometimes misidentified, likely due to filtering.
 
 clc
 close all
 clear all
 
-lMtilde_ext.max = 1.5;
-ls = 'simm_gen';
-meth = 'cas';
-optMuscles = 'out_18';
-lMt_ub = num2str(10*lMtilde_ext.max);
-
-% Add folder to MATLAB search path 
+%% Paths 
 pathmain = pwd;
-[pathRepo,~,~] = fileparts(pathmain);
-pathRepo_simcpspasticity = 'C:\Users\u0101727\Documents\MyRepositories\simcpspasticity_cases';
-addpath(genpath(pathRepo));
+[pathSpasticity,~,~] = fileparts(pathmain);
+addpath(genpath(pathSpasticity));
+[pathRepo,~,~] = fileparts(pathSpasticity);
 pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
 
-
-subjects_names = {'EF_r'};
-
-for sn = 1%length(subjects_names) 
+subjects_names = {'subject1'};
+for sn = 1:length(subjects_names) 
     subject_name = subjects_names{sn};
     % Load data from subjects
     switch subject_name
-        case 'EF_r'
-            real_subject_name = 'EF';
-            model = 'FrEu_pre_MRI_scaledtorso'; 
-            path_folder_HD = [pathRepo_simcpspasticity,'\Alldata\'];
-            load([path_folder_HD,'\IPSA\EF\001217b123_segments_deleted.mat']);
+        case 'subject1'
+            subject = subject_name;
+            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
             segment_sel = 1:22;            
     end      
-    savefolder = [pathOpenSimModel,real_subject_name,...
-        '\Spasticity\SpasticGainEstimation'];
+    savefolder = [pathOpenSimModel,subject,'\Spasticity\SpasticGainEstimation'];
     Nsegment = length(segment_sel);              
     onset_man = zeros(Nsegment,1);                
     for ms = 1:Nsegment     
         % They changed the way ISA are structured, now GAS corresponds to 1
         % MEH corresponds to 2, REF corresponds to 3
-        if strcmp(real_subject_name,'EF') && ...
+        if strcmp(subject,'subject1') && ...
                 strcmp(allsegments(ms).joint_name,'knee_ext')
             onset_idx = 'onset2';
-        elseif strcmp(real_subject_name,'EF') && ...
+        elseif strcmp(subject,'subject1') && ...
                 strcmp(allsegments(ms).joint_name,'knee_flex')
             onset_idx = 'onset3';
         else
@@ -67,13 +56,12 @@ for sn = 1%length(subjects_names)
         else
         trial = ['segment_' int2str(segment_sel(ms))];
         % Load EMG
-        load([pathOpenSimModel,real_subject_name,...
-            '\EMG\',['Stretch_',trial],'\emg1_norm_',optMuscles,'_ublM',...
-            lMt_ub,'_ls_',ls,'_meth_',meth,'.mat']);
+        load([pathOpenSimModel,subject,...
+            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat']);
         figure(segment_sel(ms))
         plot(emg1processednorm(:,1),'linewidth',2); hold on;
-        pl = plot([allsegments(ms).(onset_idx) allsegments(ms).(onset_idx)],ylim,...
-            'k','linewidth',2);
+        pl = plot([allsegments(ms).(onset_idx) allsegments(ms).(onset_idx)],...
+            ylim,'k','linewidth',2);
         l = legend(pl,'Automatically identified EMG onset');
         set(l,'Fontsize',16);
         title(['Select EMG onset, if difference with automatically', ...
@@ -87,8 +75,7 @@ for sn = 1%length(subjects_names)
         % if this seems bad, then adjust
             onset_man(ms) = startstop; 
         end
-        plot([onset_man(ms) onset_man(ms)],ylim,'g',...
-            'linewidth',3);
+        plot([onset_man(ms) onset_man(ms)],ylim,'g','linewidth',3);
         end
     end
     onset_man = round(onset_man);

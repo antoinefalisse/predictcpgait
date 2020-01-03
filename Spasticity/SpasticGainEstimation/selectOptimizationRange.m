@@ -1,47 +1,38 @@
-% This scripts allows the user to manually adjust the optimization time
-% interval
+% This scripts allows users to manually adjust the optimization time interval
 
 clc
 close all
 clear all
 
-lMtilde_ext.max = 1.5;
-ls = 'simm_gen';
-meth = 'cas';
-optMuscles = 'out_18';
-lMt_ub = num2str(10*lMtilde_ext.max);
-
-% Add folder to MATLAB search path 
+%% Paths 
 pathmain = pwd;
-[pathRepo,~,~] = fileparts(pathmain);
-addpath(genpath(pathRepo));
-pathRepo_simcpspasticity = 'C:\Users\u0101727\Documents\MyRepositories\simcpspasticity_cases';
+[pathSpasticity,~,~] = fileparts(pathmain);
+addpath(genpath(pathSpasticity));
+[pathRepo,~,~] = fileparts(pathSpasticity);
 pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
 
-subjects_names = {'EF_r'};
+subjects_names = {'subject1'};
 joints = {'knee','ankle'};
-for sn = length(subjects_names)     
+for sn = 1:length(subjects_names)     
     subject_name = subjects_names{sn};
-    for j = length(joints)
+    for j = 1:length(joints)
     joint = joints{j};
     if exist('segment_sel','var')
         clear segment_sel
     end
     switch subject_name
-        case 'EF_r'
-            real_subject_name = 'EF';
-            path_folder_HD = [pathRepo_simcpspasticity,'\Alldata\'];
-            load([path_folder_HD,'\IPSA\EF\001217b123_segments_deleted.mat']);
+        case 'subject1'
+            subject = subject_name;
+            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
             switch joint
                 case 'knee'
-                    segment_sel = 1:8;
+                    segment_sel = 6:8;
                 case 'ankle'
-                    segment_sel = 15:22;
+                    segment_sel = 19:22;
             end               
             segment_sel_all = 1:22;
     end
-   savefolder = [pathOpenSimModel,real_subject_name,...
-        '\Spasticity\SpasticGainEstimation'];
+   savefolder = [pathOpenSimModel,subject,'\Spasticity\SpasticGainEstimation'];
     if exist('segment_sel','var') == 0
         continue
     end  
@@ -51,10 +42,10 @@ for sn = length(subjects_names)
     for ms = 1:Nsegment      
         % They changed the way ISA are structured, now GAS corresponds to 1
         % MEH corresponds to 2, REF corresponds to 3
-        if strcmp(real_subject_name,'EF') && ...
+        if strcmp(subject,'subject1') && ...
                 strcmp(allsegments(segment_sel(ms)).joint_name,'knee_ext')
             onset_idx = 'onset2';
-        elseif strcmp(real_subject_name,'EF') && ...
+        elseif strcmp(subject,'subject1') && ...
                 strcmp(allsegments(segment_sel(ms)).joint_name,'knee_flex')
             onset_idx = 'onset3';
         else
@@ -62,11 +53,10 @@ for sn = length(subjects_names)
         end  
         
         trial = ['segment_' int2str(segment_sel(ms))];
-        load([pathOpenSimModel,real_subject_name,...
-            '\EMG\',['Stretch_',trial],'\emg1_norm_',optMuscles,'_ublM',...
-            lMt_ub,'_ls_',ls,'_meth_',meth,'.mat']);
-        load([path_folder_HD,'OpenSim\',real_subject_name,'\JointAngles\',...
-            'IPSA\',['JointAngles_',trial,'_range.mat']]);
+        load([pathOpenSimModel,subject,...
+            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat']);
+        load([pathOpenSimModel,subject,...
+            '\IK\','IPSA\',['JointAngles_',trial,'_range.mat']]);
         if isnan(allsegments(segment_sel(ms)).(onset_idx))
             SelectRangeOnset(ms,:) = 100;
         % No low velocity trials since not used for estimation

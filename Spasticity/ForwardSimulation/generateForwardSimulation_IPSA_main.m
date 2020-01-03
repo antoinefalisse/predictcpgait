@@ -17,6 +17,9 @@ addpath(genpath(pathSpasticity));
 pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
 pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
 Misc.pathMuscleModel = [pathRepo,'\MuscleModel\'];
+addpath(genpath(Misc.pathMuscleModel));
+pathVariousFunctions = [pathRepo,'\VariousFunctions\'];
+addpath(genpath(pathVariousFunctions));
 
 % Different cases being considered
 % Knee extension: IPSA of the hamstrings (1)
@@ -38,13 +41,13 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
                 case 'knee'
                     switch stretchvelocity
                         case 'fast'
-                            Misc.segment_sel_all = 6; % no onset 5
+                            Misc.segment_sel_all = 6:8; % no onset 5
                         % no medium velocity
                     end                            
                 case 'ankle'
                     switch stretchvelocity
                         case 'fast'
-                            Misc.segment_sel_all = 19; 
+                            Misc.segment_sel_all = 19:22; 
                         % no medium velocity
                     end
             end
@@ -52,7 +55,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     % Load data from subjects
     switch Misc.subject_name
         case 'subject1'
-            subject = 'subject1';
+            subject = Misc.subject_name;
             load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
             % Affected side
             sidename = 'RIGHT';

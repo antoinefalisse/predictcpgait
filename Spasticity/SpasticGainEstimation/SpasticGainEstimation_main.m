@@ -1,109 +1,26 @@
-% This script estimates the spastic gains based on sensory information from
-% passive fast stretch motions (IPSA)
+% This script estimates spastic / feedback gains that reproduce EMG data based
+% on feedback from muscle force and force rate during passive fast stretches
+% (IPSA assessments). The code is inspired from Falisse et al, PLoS ONE (2018):
+% https://doi.org/10.1371/journal.pone.0208811
+%
+% Author: Antoine Falisse
+% Date: 1/2/2020
+%
 clear all
 close all
 clc
 
-% lMtilde_ext.max = 1.5;
-% optMuscles = 'out_0';
-% numbTrials = '4';
-% NISA = '6';
-% dev_p = 5;
-% lMt_ub = num2str(10*lMtilde_ext.max);
-% W.act         = 0.00100;
-% W.aT        = 0.60000;
-% W.vA        = 0.00001;
-% W.dF        = 0.00001;
-% W.EMG.all   = 0.003500-W.vA-W.dF;
-% W.lMopt_max = 0.394500;
-% W.pen       = 0.00100;
-% nameParameters = [optMuscles,'_ublM',lMt_ub,...
-%     '_Ntr',numbTrials,'_NISA',NISA,'_devp',num2str(dev_p),...
-%     '_a',num2str(round(W.act*10000)),'_aT',num2str(round(W.aT*10000)),...
-%     '_EMG',num2str(round(W.EMG.all*10000)),...
-%     '_lM',num2str(round(W.lMopt_max*10000)),...
-%     '_pen',num2str(round(W.pen*10000)),'_2sides'];
-testCase = '32';
-Misc.bspas = 100;
-lMtilde_ext.max = 1.5;
-optMuscles = 'out_0';
-numbTrials = '4';
-NISA = '6';
-dev_p = 5;
-lMt_ub = num2str(10*lMtilde_ext.max);
-% delta = 0.1;
-% W.act       = 0.00100;
-% W.aT        = 0.60000;
-% W.vA        = 0.00001;
-% W.dF        = 0.00001;
-% W.EMG.all   = 0.003500-W.vA-W.dF;
-% W.lMopt_max = 0.394500;
-% W.lMopt     = 0.00100;
-% W.act       = 0.00100-W.act*delta/(1-0.00100);
-% W.aT        = 0.60000-W.aT*delta/(1-0.00100);
-% W.vA        = 0.00001-W.vA*delta/(1-0.00100);
-% W.dF        = 0.00001-W.dF*delta/(1-0.00100);
-% W.EMG.all   = 0.003480-W.EMG.all*delta/(1-0.00100);
-% W.lMopt_max = 0.394500-W.lMopt_max*delta/(1-0.00100);
-% W.lMopt     = 0.00100+delta;
-% nameParameters = [optMuscles,'_ublM',lMt_ub,...
-%     '_Ntr',numbTrials,'_NISA',NISA,'_devp',num2str(dev_p),...
-%     '_a',num2str(round(W.act*10000)),'_aT',num2str(round(W.aT*10000)),...
-%     '_EMG',num2str(round(W.EMG.all*10000)),...
-%     '_lM',num2str(round(W.lMopt_max*10000)),...
-%     '_lMopt',num2str(round(W.lMopt*10000)),'_2sides'];
-
-switch testCase
-    case '32'
-        ScaleMIN = 0.01;
-        delta = 0.1;
-        W.act       = 0.00100;
-        W.aT        = 0.60000;
-        W.vA        = 0.00001;
-        W.dF        = 0.00001;
-        W.EMG.all   = 0.003500-W.vA-W.dF;
-        W.lMopt_max = 0.394500;
-        W.lMopt     = 0.00100;
-        W.act       = 0.00100-W.act*delta/(1-0.00100);
-        W.aT        = 0.60000-W.aT*delta/(1-0.00100);
-        W.vA        = 0.00001-W.vA*delta/(1-0.00100);
-        W.dF        = 0.00001-W.dF*delta/(1-0.00100);
-        W.EMG.all   = 0.003480-W.EMG.all*delta/(1-0.00100);
-        W.lMopt_max = 0.394500-W.lMopt_max*delta/(1-0.00100);
-        W.lMopt     = 0.00100+delta;
-    case '34'
-        ScaleMIN = 0.3;
-        delta = 0.1;
-        W.act       = 0.00100;
-        W.aT        = 0.60000;
-        W.vA        = 0.00001;
-        W.dF        = 0.00001;
-        W.EMG.all   = 0.003500-W.vA-W.dF;
-        W.lMopt_max = 0.394500;
-        W.lMopt     = 0.00100;
-        W.act       = 0.00100-W.act*delta/(1-0.00100);
-        W.aT        = 0.60000-W.aT*delta/(1-0.00100);
-        W.vA        = 0.00001-W.vA*delta/(1-0.00100);
-        W.dF        = 0.00001-W.dF*delta/(1-0.00100);
-        W.EMG.all   = 0.003480-W.EMG.all*delta/(1-0.00100);
-        W.lMopt_max = 0.394500-W.lMopt_max*delta/(1-0.00100);
-        W.lMopt     = 0.00100+delta;
-end
-nameParameters = [optMuscles,'_ublM',lMt_ub,...
-    '_Ntr',numbTrials,'_NISA',NISA,'_devp',num2str(dev_p),...
-    '_a',num2str(round(W.act*10000)),'_aT',num2str(round(W.aT*10000)),...
-    '_EMG',num2str(round(W.EMG.all*10000)),...
-    '_lM',num2str(round(W.lMopt_max*10000)),...
-    '_lMopt',num2str(round(W.lMopt*10000)),'_2sides',...
-    '_scMin',num2str(ScaleMIN*100)];
-
-% Add folder to MATLAB search path 
+%% Paths 
 pathmain = pwd;
-[pathRepo,~,~] = fileparts(pathmain);
-pathRepo_simcpspasticity = 'C:\Users\u0101727\Documents\MyRepositories\simcpspasticity_cases';
-addpath(genpath(pathRepo));
+[pathSpasticity,~,~] = fileparts(pathmain);
+addpath(genpath(pathSpasticity));
+[pathRepo,~,~] = fileparts(pathSpasticity);
 pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
+pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
+Misc.pathMuscleModel = [pathRepo,'\MuscleModel\'];
+addpath(genpath(Misc.pathMuscleModel));
 
+%% Settings
 % Three spasticity models are proposed: force-related model (muscle-tendon
 % force and dF/dt feedback), velocity-related model (muscle fiber length
 % and velocity feedback), and acceleration-related model (muscle fiber
@@ -123,8 +40,8 @@ OptRange = 'user-based'; % option: user-based / pre-selected
 joints = {'knee','ankle'};
 % ind: joint available for subject (1: knee, 2: ankle)
 % comb: combination available among motions (cfr nc in code)
-namesjoints.EF_r.ind = [1 2];
-namesjoints.EF_r.comb = [1 1]; % 1, 2, 3, 4 tested for ankle comb
+namesjoints.subject1.ind = [1 2];
+namesjoints.subject1.comb = [1 1]; % 1, 2, 3, 4 tested for ankle comb
 
 % Loop over formulations
 for ff = 1:length(formulations)
@@ -138,7 +55,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     jj = namesjoints.(Misc.subject_name).ind(jjj);
     % Indices of the fast trials
     switch Misc.subject_name
-        case 'EF_r'
+        case 'subject1'
             switch joints{jj}
                 case 'knee'
                     Misc.segment_sel_all = 6:8; 
@@ -156,22 +73,16 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
 
     % Load data from subjects
     switch Misc.subject_name
-        case 'EF_r'
-            real_subject_name = 'EF';
-            model = 'EF_MRI_extROM'; 
-            path_folder_HD = [pathRepo_simcpspasticity,'\Alldata\'];
-            load([path_folder_HD,'\IPSA\EF\001217b123_segments_deleted.mat']);
+        case 'subject1'
+            subject = Misc.subject_name;
+            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
             % Affected side
             sidename = 'RIGHT';        
     end
-    Misc.savefolder = [pathOpenSimModel,real_subject_name,...
+    Misc.savefolder = [pathOpenSimModel,subject,
         '\Spasticity\SpasticGainEstimation'];
-    Misc.savefolderForwardSimulation = [pathOpenSimModel,real_subject_name,...
-        '\Spasticity\ForwardSimulations\IPSA_',nameParameters];
-%     Misc.savefolderParameterEstimation = [path_folder_HD,...
-%         'OptimizedData\',real_subject_name,'\ParameterEstimation'];
-    % TODO
-%     Misc.path_folder_HD = path_folder_HD;
+    Misc.savefolderForwardSimulation = [pathOpenSimModel,subject,...
+        '\Spasticity\ForwardSimulations\IPSA'];
 
     %% Various inputs 
     % Muscles and DOFs
@@ -199,7 +110,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
             Uletter_side = 'R';
             vecAll = 44:86;
     end
-    getMuscleNamesIndices_MRI
+    getMuscleNamesIndices
     switch joints{jj}
         case {'knee','knee_flex'}
             Misc.MuscleNames_Input = MKnee_side;
@@ -221,21 +132,19 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     EMG_path_antagonist = struct('MS',[]);
     for ms = 1:Misc.Nsegment
         trial = ['segment_' int2str(Misc.segment_sel(ms))];
-        IK_path(ms).MS=fullfile(path_folder_HD,'OpenSim',...
-            real_subject_name,'JointAngles','IPSA',['JointAngles_',...
-            trial,'.mot']);
-        ID_path(ms).MS=fullfile(path_folder_HD,'OpenSim',...
-                real_subject_name,'ID','IPSA',['ID_',trial,'.sto']);
-        MuscleAnalysis_path(ms).MS = fullfile(path_folder_HD,...
-            'OpenSim',real_subject_name,'MuscleAnalysis','IPSA',...
+        IK_path(ms).MS=fullfile(pathOpenSimModel,...
+            subject,'IK','IPSA',['JointAngles_',trial,'.mot']);
+        ID_path(ms).MS=fullfile(pathOpenSimModel,...
+            subject,'ID','IPSA',['ID_',trial,'.sto']);
+        MuscleAnalysis_path(ms).MS = fullfile(pathOpenSimModel,...
+            subject,'MuscleAnalysis','IPSA',...
             ['Stretch_',trial],['MuscleAnalysis_',...
             trial,'_MuscleAnalysis_']);
-        EMG_path_agonist(ms).MS = [pathOpenSimModel,real_subject_name,...
-            '\EMG\',['Stretch_',trial],'\emg1_norm_',nameParameters,'.mat'];
-        EMG_path_antagonist(ms).MS = [pathOpenSimModel,real_subject_name,...
-            '\EMG\',['Stretch_',trial],'\emg2_norm_',nameParameters,'.mat'];           
+        EMG_path_agonist(ms).MS = [pathOpenSimModel,subject,...
+            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat'];
+        EMG_path_antagonist(ms).MS = [pathOpenSimModel,subject,...
+            '\EMG\IPSA\',['Stretch_',trial],'\emg2_norm_personalized.mat'];           
     end
-    model_path=[pathOpenSimModel,real_subject_name,'\',model,'.osim'];
     
     %% Optional Input Arguments
     Misc.Atendon = [];              % Tendon Stiffness for selected muscles
@@ -249,11 +158,12 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     Misc.f_order_IK = 4;            % order frequency filtering IK
             
     %% MT-parameters optimized during parameter optimization
-    load([pathRepo,'\MTParameters\MTParameters_',real_subject_name,...
-        '_MRI_opt_',nameParameters,'.mat']);
+    load([pathParameterEstimation,'\Results\',subject,...
+        '\MTParameters_personalized.mat']); 
     MTParameters_side = MTParameters(:,vecAll);    
     for m = 1:length(Misc.MuscleNames_Input)
-        Misc.params_scaled(:,m) = MTParameters_side(:,strcmp(Mall_side,Misc.MuscleNames_Input{m}));
+        Misc.params_scaled(:,m) = ...
+            MTParameters_side(:,strcmp(Mall_side,Misc.MuscleNames_Input{m}));
     end
 
     %% Range of motion
@@ -269,22 +179,15 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     for ms = 1:Misc.Nsegment
         trial = ['segment_' int2str(segment_sel(ms))];
         Misc.allsegments(ms).MS = allsegments(segment_sel(ms));
-        if strcmp(Misc.subject_name,'EF_r') || strcmp(Misc.subject_name,'EF_l')
-            Misc.range(ms).MS = load([path_folder_HD,'OpenSim\',...
-                    real_subject_name,'\JointAngles\','IPSA\',...
-                    ['JointAngles_',trial,'_range.mat']]);
-        else
-            Misc.range(ms).MS = load([path_folder_HD '\OpenSim\',...
-                'SymModel\JointAngles\DataPellenberg\JointAngles_',...
-                trial,'_range.mat']); 
-        end
+        Misc.range(ms).MS = load([pathOpenSimModel,subject,...
+            '\IK\','IPSA\',['JointAngles_',trial,'_range.mat']]);
         
         % They changed the way ISA are structured, now GAS corresponds to 1
         % MEH corresponds to 2, REF corresponds to 3
-        if strcmp(real_subject_name,'EF') && ...
+        if strcmp(subject,'subject1') && ...
                 strcmp(joints{jj},'knee')
             onoff_idx = 'onoff2';
-        elseif strcmp(real_subject_name,'EF') && ...
+        elseif strcmp(subject,'subject1') && ...
                 strcmp(joints{jj},'knee_flex')
             onoff_idx = 'onoff3';
         else
@@ -317,9 +220,6 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
         Misc.range_optimization(ms).MS = ...
             range_optimization(1,segment_sel(ms))-9 : ...
             range_optimization(2,segment_sel(ms))-9;
-        % Duration interval of optimization (used in paper)
-        % timeInterOpt(nn).(joints{jj})(ms) = ...
-        %    length(Misc.range_optimization(ms).MS);
     end           
     
     %% Solve the problem 
@@ -330,13 +230,13 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
                 EMG_path_antagonist,Misc);  
     end
     number_save = [formulation '_' int2str(segment_sel)];
-    if ~(exist([Misc.savefolder,'\',formulation,'_',nameParameters,'_',num2str(Misc.bspas)],'dir')==7)
-        mkdir([Misc.savefolder,'\',formulation,'_',nameParameters,'_',num2str(Misc.bspas)]);
+    if ~(exist([Misc.savefolder,'\',formulation],'dir')==7)
+        mkdir([Misc.savefolder,'\',formulation]);
     end
-    save([Misc.savefolder,'\',formulation,'_',nameParameters,'_',num2str(Misc.bspas),'\output_',joints{jj},'_',...
-        number_save],'output');
-    save([Misc.savefolder,'\',formulation,'_',nameParameters,'_',num2str(Misc.bspas),'\DatStore_',joints{jj},'_',...
-        number_save],'DatStore'); 
+    save([Misc.savefolder,'\',formulation,'\output_',joints{jj},...
+        '_',number_save],'output');
+    save([Misc.savefolder,'\',formulation,'\DatStore_',joints{jj},...
+        '_',number_save],'DatStore'); 
     
 end
 end

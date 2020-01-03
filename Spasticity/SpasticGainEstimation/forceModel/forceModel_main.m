@@ -164,7 +164,7 @@ auxdata.tauAct          = 0.015; % activation time constant
 auxdata.tauDeact        = 0.06; % deactivation time constant
 auxdata.b               = 0.1; % parameter determining smoothness tanh
 auxdata.joint           = Misc.joint; % joint being considered
-auxdata.bspas           = Misc.bspas; % joint being considered
+auxdata.bspas           = 100;
 % indices antagonist spastic muscles
 auxdata.Muscles_antagonist = Muscles_antagonist;
 % Thresholds of spastic models
