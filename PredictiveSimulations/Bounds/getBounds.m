@@ -510,6 +510,10 @@ bounds.Qdotdots.lower = (bounds.Qdotdots.lower)./scaling.Qdotdots;
 bounds.Qdotdots.upper = (bounds.Qdotdots.upper)./scaling.Qdotdots;
 bounds.Qdotdots.lower(isnan(bounds.Qdotdots.lower)) = 0;
 bounds.Qdotdots.upper(isnan(bounds.Qdotdots.upper)) = 0;
+% Joint torques
+% Fixed scaling factor
+Topt = 150;
+scaling.T = repmat(Topt,1,nq.res_gp);
 % Time derivative of muscle activations
 % Fixed scaling factor
 scaling.vA = 100;

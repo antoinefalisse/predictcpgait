@@ -25,14 +25,14 @@ close all;
 % num_set(6): set to 1 to write motion file starting at right heel strike
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
-% num_set = [1,1,0,0,0,0]; % This configuration solves the problem
-num_set = [0,1,1,0,0,0,0]; % This configuration analyzes the results
+num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
+% num_set = [0,1,1,0,0,0,0]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
 % function). Through the variable idx_settings, the user can select which row of
 % parameters is used.
-idx_settings = 28; % Index row in matrix settings
+idx_settings = 1; % Index row in matrix settings
 
 %% Settings
 import casadi.*
@@ -241,6 +241,9 @@ musi_FLV = [musi,musi+NMuscles/2];
 musi_FLV(musi_noFLV) = [];
 MTParameters_FLV = MTParameters(:,musi_FLV);
 MTParameters_noFLV = MTParameters(:,musi_noFLV);
+% Parameters for activation dynamics
+tact = 0.015;
+tdeact = 0.06;
 
 %% Metabolic energy model
 % We extract the specific tensions and slow twitch rations.
@@ -351,7 +354,7 @@ load([pathpolynomial,'/MuscleInfo_',subject,'_r.mat']);
 load([pathpolynomial,'/MuscleInfo_',subject,'_l.mat']);
 % For the polynomials, we want all independent muscles. So we do not need 
 % the muscles from both legs, since we assume bilateral symmetry, but want
-% all muscles from the back (indices 47:49).
+% all muscles from the trunk (indices 47:49).
 musi_pol = musi;
 NMuscles_pol = NMuscles/2;
 PredSimOCP_CasADiFunctions
@@ -501,7 +504,8 @@ if solveProblem
     lbw             = [lbw; bounds(1).mp.tf.lower];
     ubw             = [ubw; bounds(1).mp.tf.upper];
     w0              = [w0;  guess(1).mp.tf];
-    if NSyn ~= 99
+    % When synergies are imposed, synergy weights are static parameters
+    if NSyn ~= 99 % no synergies
         % Synergy weights: left side
         syn_wl          = MX.sym('syn_wl',NMuscles/2*NSyn);
         w               = [w {syn_wl}];
@@ -515,7 +519,7 @@ if solveProblem
         ubw             = [ubw; bounds(1).mp.synw.upper.r(:)];
         w0              = [w0;  guess(1).mp.synw.r(:)];  
     end
-    % loop over phases
+    % Loop over phases
     for mpi = 1:NPhases  
         % Define states at first mesh point
         % Muscle activations
@@ -536,6 +540,8 @@ if solveProblem
         lbw             = [lbw; bounds(mpi).mp.QsQdots.lower(1,:)'];
         ubw             = [ubw; bounds(mpi).mp.QsQdots.upper(1,:)'];    
         w0              = [w0;  guess(mpi).mp.QsQdots(1,:)']; 
+        % When spasticity is taken into account, feedback muscle
+        % activations are states.
         if spasi == 1
             % Muscle activations from muscle-tendon force feedback
             a_Ff0           = MX.sym('a_Ff0',NMuscles_Spas);
@@ -543,14 +549,14 @@ if solveProblem
             lbw             = [lbw; bounds(mpi).mp.a_Ff.lower'];
             ubw             = [ubw; bounds(mpi).mp.a_Ff.upper'];
             w0              = [w0;  guess(mpi).mp.a_Ff(1,:)'];    
-            % Muscle activations from time derivative of muscle-tendon force feedback
+            % Muscle activations from muscle-tendon force rate feedback
             a_dFf0           = MX.sym('a_dFf0',NMuscles_Spas);
             w               = [w {a_dFf0}];
             lbw             = [lbw; bounds(mpi).mp.a_dFf.lower'];
             ubw             = [ubw; bounds(mpi).mp.a_dFf.upper'];
             w0              = [w0;  guess(mpi).mp.a_dFf(1,:)'];   
         end
-        % Back activations
+        % Trunk activations
         a_b0            = MX.sym('a_b0',nq.res_trunk);
         w               = [w {a_b0}];
         lbw             = [lbw; bounds(mpi).mp.a_b.lower'];
@@ -562,21 +568,23 @@ if solveProblem
             Xk{k+1,1} = MX.sym(['X_' num2str(k+1)], 2*nq.res);
         end   
         % "Lift" initial conditions
-        ak          = a0;
-        FTtildek    = FTtilde0;
-        Xk{1,1}     = X0;
+        ak = a0;
+        FTtildek = FTtilde0;
+        Xk{1,1} = X0;
         if spasi == 1
-            a_Ffk       = a_Ff0; 
-            a_dFfk      = a_dFf0;
+            a_Ffk = a_Ff0; 
+            a_dFfk = a_dFf0;
         end
-        a_bk        = a_b0; 
+        a_bk = a_b0; 
         % Provide expression for the distance traveled
+        % initial position pelvis_tx
         pelvis_tx0 = Xk{1,1}(2*jointi.pelvis.tx-1,1).*...
-            scaling(mpi).mp.QsQdots(2*jointi.pelvis.tx-1); % initial position pelvis_tx  
+            scaling(mpi).mp.QsQdots(2*jointi.pelvis.tx-1);  
          % final position pelvis_tx: N and not N+1 to match experimental data 
         pelvis_txf = Xk{N,1}(2*jointi.pelvis.tx-1,1).*...
             scaling(mpi).mp.QsQdots(2*jointi.pelvis.tx-1);   
-        dist_trav_tot = pelvis_txf-pelvis_tx0;% distance traveled  
+        % distance traveled  
+        dist_trav_tot = pelvis_txf-pelvis_tx0;
         % Time step
         h = tf/N;
         % Loop over mesh points
@@ -600,7 +608,7 @@ if solveProblem
             lbw                 = [lbw; bounds(mpi).mp.Qdotdots.lower'];
             ubw                 = [ubw; bounds(mpi).mp.Qdotdots.upper'];
             w0                  = [w0; guess(mpi).mp.Qdotdots(k+1,:)'];
-            % Back excitations
+            % Trunk excitations
             e_bk                = MX.sym(['e_b_' num2str(k)],nq.res_trunk);
             w                   = [w {e_bk}];
             lbw                 = [lbw; bounds(mpi).mp.e_b.lower'];
@@ -631,39 +639,37 @@ if solveProblem
             for j=1:d
                 Xkj{j} = MX.sym(['X_' num2str(k) '_' num2str(j)],2*nq.res);
                 w      = {w{:}, Xkj{j}};
-                if boundsi == 1
-                    lbw    = [lbw; bounds(mpi).mp.QsQdots.lower'];
-                    ubw    = [ubw; bounds(mpi).mp.QsQdots.upper'];
-                elseif boundsi == 2 ||  boundsi == 3 || boundsi == 4 || boundsi == 5 || boundsi == 6 
-                    lbw    = [lbw; bounds(mpi).mp.QsQdots.lower(k+1,:)'];
-                    ubw    = [ubw; bounds(mpi).mp.QsQdots.upper(k+1,:)'];
-                end
+                lbw    = [lbw; bounds(mpi).mp.QsQdots.lower(k+1,:)'];
+                ubw    = [ubw; bounds(mpi).mp.QsQdots.upper(k+1,:)'];
                 w0     = [w0;  guess(mpi).mp.QsQdots(k+1,:)'];
             end   
             if spasi == 1
                 % Muscle activations from muscle-tendon force feedback
                 a_Ffkj = {};
                 for j=1:d
-                    a_Ffkj{j}= MX.sym(['	a_Ff_' num2str(k) '_' num2str(j)],NMuscles_Spas);
+                    a_Ffkj{j} = MX.sym(['a_Ff_' num2str(k) '_' num2str(j)], ...
+                        NMuscles_Spas);
                     w       = {w{:}, a_Ffkj{j}};
                     lbw     = [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw     = [ubw; bounds(mpi).mp.a_Ff.upper'];
                     w0      = [w0;  guess(mpi).mp.a_Ff(k+1,:)'];
                 end
-                % Muscle activations from time derivative of muscle-tendon force feedback
+                % Muscle activations from muscle-tendon force rate feedback
                 a_dFfkj = {};
                 for j=1:d
-                    a_dFfkj{j}= MX.sym(['	a_dFf_' num2str(k) '_' num2str(j)],NMuscles_Spas);
+                    a_dFfkj{j}= MX.sym(['a_dFf_' num2str(k) '_' num2str(j)], ...
+                        NMuscles_Spas);
                     w       = {w{:}, a_dFfkj{j}};
                     lbw     = [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw     = [ubw; bounds(mpi).mp.a_dFf.upper'];
                     w0      = [w0;  guess(mpi).mp.a_dFf(k+1,:)'];
                 end
             end
-            % Back activations
+            % Trunk activations
             a_bkj = {};
             for j=1:d
-                a_bkj{j}= MX.sym(['	a_b_' num2str(k) '_' num2str(j)],nq.res_trunk);
+                a_bkj{j}= MX.sym(['	a_b_' num2str(k) '_' num2str(j)], ...
+                    nq.res_trunk);
                 w       = {w{:}, a_bkj{j}};
                 lbw     = [lbw; bounds(mpi).mp.a_b.lower'];
                 ubw     = [ubw; bounds(mpi).mp.a_b.upper'];
@@ -733,11 +739,11 @@ if solveProblem
                 ark = f_SynergyProduct(syn_wr,ak(NSyn+1:2*NSyn,1));            
                 asynk = [alk;ark];
             end                   
-            % Muscle activations come from supra-spinal input and reflex feedback
+            % Muscle activations are combined feedback and feedforward
             a_totk = MX(NMuscles,1); 
             if spasi == 1
-                a_totk(musi_noSpas) = asynk(musi_noSpas); % supra-spinal inputs
-                a_totk(musi_Spas) = asynk(musi_Spas) + a_Ffk + a_dFfk; % reflexes     
+                a_totk(musi_noSpas) = asynk(musi_noSpas);
+                a_totk(musi_Spas) = asynk(musi_Spas) + a_Ffk + a_dFfk;
             else
                 a_totk = asynk;
             end
@@ -828,29 +834,29 @@ if solveProblem
             FTtildek_nsc_end    = D(1)*FTtildek_nsc;
             ak_end              = D(1)*ak;
             if spasi == 1
-                a_Ffk_end           = D(1)*a_Ffk;
-                a_dFfk_end          = D(1)*a_dFfk;
+                a_Ffk_end = D(1)*a_Ffk;
+                a_dFfk_end = D(1)*a_dFfk;
             end
-            a_bk_end            = D(1)*a_bk; 
+            a_bk_end = D(1)*a_bk; 
             for j=1:d
                 % Expression for the state derivatives at the collocation point
                 xp_nsc          = C(1,j+1)*Xk_nsc;
                 FTtildep_nsc    = C(1,j+1)*FTtildek_nsc;
                 ap              = C(1,j+1)*ak;
                 if spasi == 1
-                    a_Ffp           = C(1,j+1)*a_Ffk;
-                    a_dFfp          = C(1,j+1)*a_dFfk;
+                    a_Ffp = C(1,j+1)*a_Ffk;
+                    a_dFfp = C(1,j+1)*a_dFfk;
                 end
-                a_bp            = C(1,j+1)*a_bk;
+                a_bp = C(1,j+1)*a_bk;
                 for r=1:d
                     xp_nsc       = xp_nsc + C(r+1,j+1)*Xkj_nsc{r};
                     FTtildep_nsc = FTtildep_nsc + C(r+1,j+1)*FTtildekj_nsc{r};
                     ap           = ap + C(r+1,j+1)*akj{r};
                     if spasi == 1
-                        a_Ffp        = a_Ffp + C(r+1,j+1)*a_Ffkj{r};
-                        a_dFfp       = a_dFfp + C(r+1,j+1)*a_dFfkj{r};
+                        a_Ffp = a_Ffp + C(r+1,j+1)*a_Ffkj{r};
+                        a_dFfp = a_dFfp + C(r+1,j+1)*a_dFfkj{r};
                     end
-                    a_bp         = a_bp + C(r+1,j+1)*a_bkj{r};
+                    a_bp = a_bp + C(r+1,j+1)*a_bkj{r};
                 end 
                 % Append collocation equations
                 % Dynamic constraints are scaled using the same scale
@@ -869,14 +875,15 @@ if solveProblem
                     % Spindle dynamics (explicit formulation)
                     % Force feedback            
                     da_Ffdt = f_spindleDynamics(a_Ffkj{j},...
-                        FTtildek_nsc(musi_Spas_In_FLV),tauFf.all,gFf.all,bspas,...
-                        threshold_Ff_gait.all);
+                        FTtildek_nsc(musi_Spas_In_FLV),tauFf.all,gFf.all,...
+                        bspas,threshold_Ff_gait.all);
                     g       = {g{:}, (h*da_Ffdt - a_Ffp)};
                     lbg     = [lbg; zeros(NMuscles_Spas,1)];
                     ubg     = [ubg; zeros(NMuscles_Spas,1)]; 
                     % Time derivative of force feedback feedback            
                     da_dFfdt = f_spindleDynamics(a_dFfkj{j},...
-                        dFTtildek(musi_Spas_In_FLV).*scaling(mpi).mp.dFTtilde,...
+                        dFTtildek(musi_Spas_In_FLV)...
+                        .*scaling(mpi).mp.dFTtilde,...
                         taudFf.all,gdFf.all,bspas,threshold_dFf_gait.all);
                     g       = {g{:}, (h*da_dFfdt - a_dFfp)};
                     lbg     = [lbg; zeros(NMuscles_Spas,1)];
@@ -895,10 +902,10 @@ if solveProblem
                     Xkj_nsc{j}(34); Ak_nsc(17); Xkj_nsc{j}(36); Ak_nsc(18);...
                     Xkj_nsc{j}(38); Ak_nsc(19); Xkj_nsc{j}(40); Ak_nsc(20);...
                     Xkj_nsc{j}(42); Ak_nsc(21)];                   
-                g       = {g{:}, (h*xj_nsc - xp_nsc)./(scaling(mpi).mp.QsQdots')};
-                lbg     = [lbg; zeros(2*nq.res,1)];
-                ubg     = [ubg; zeros(2*nq.res,1)];   
-                % Back activation dynamics (explicit formulation)   
+                g	= {g{:}, (h*xj_nsc - xp_nsc)./(scaling(mpi).mp.QsQdots')};
+                lbg	= [lbg; zeros(2*nq.res,1)];
+                ubg	= [ubg; zeros(2*nq.res,1)];   
+                % Trunk activation dynamics (explicit formulation)   
                 dadt    = f_TrunkActivationDynamics(e_bk,a_bkj{j});
                 g       = {g{:}, (h*dadt - a_bp)./scaling(mpi).mp.a_b};
                 lbg     = [lbg; zeros(nq.res_trunk,1)];
@@ -908,36 +915,20 @@ if solveProblem
                 FTtildek_nsc_end = FTtildek_nsc_end + D(j+1)*FTtildekj_nsc{j};
                 ak_end           = ak_end + D(j+1)*akj{j};
                 if spasi == 1
-                    a_Ffk_end   = a_Ffk_end + D(j+1)*a_Ffkj{j};   
-                    a_dFfk_end  = a_dFfk_end + D(j+1)*a_dFfkj{j}; 
+                    a_Ffk_end = a_Ffk_end + D(j+1)*a_Ffkj{j};   
+                    a_dFfk_end = a_dFfk_end + D(j+1)*a_dFfkj{j}; 
                 end                 
-               a_bk_end     = a_bk_end + D(j+1)*a_bkj{j};  
+                a_bk_end = a_bk_end + D(j+1)*a_bkj{j};  
                 % Add contribution to quadrature function
-                % Tracking terms
-                % Qs
-                Qs_costk = B(j+1)*(f_JNq_bpty(Xk{k+1,1}(Qsi(jointi.res_bptyi))-...
-                        Qs(mpi).mp.allinterpfilt(k+1,jointi.res_bptyi+1)'... 
-                        ./scaling(mpi).mp.Qs(jointi.res_bptyi)'))*h;
-                % GRF
-                GRF_costk = B(j+1)*(f_J6((Tk(GRFi.all,1)./...
-                    scaling(mpi).mp.GRF')-...
-                    GRF(mpi).mp.val.allinterp(k+1,2:end)'./...
-                    scaling(mpi).mp.GRF'))*h;
-                % GRT
-                GRT_costk = B(j+1)*(f_J6((Tk(GRMi.all,1)./...
-                    scaling(mpi).mp.GRM')-...
-                    GRF(mpi).mp.MorGF.allinterp(k+1,2:end)'./...
-                    scaling(mpi).mp.GRM'))*h;
-                % Joint torques
-                ID_costk = B(j+1)*...
-                    (f_JNq_act((Tk(jointi.res_bgpi,1)./scaling(mpi).mp.T(1)')-...
-                    ID(mpi).mp.allinterp(k+1,2+nq.res_gp:end)'./...
-                    scaling(mpi).mp.T(1)))*h;
-                % All combined
-                track_terms = W.TrackTD*Qs_costk + W.GRF*GRF_costk +...
-                    W.GRM*GRT_costk + W.ID_act*ID_costk;
+                % Tracking term(s)
+                % TD kinematics tracking
+                Qs_costk = ...
+                    B(j+1)*(f_JNq_bpty(Xk{k+1,1}(Qsi(jointi.res_bptyi))-...
+                    Qs(mpi).mp.allinterpfilt(k+1,jointi.res_bptyi+1)'... 
+                    ./scaling(mpi).mp.Qs(jointi.res_bptyi)'))*h;
+                track_terms = W.TrackTD*Qs_costk;
                 % Motor control terms
-                % Activations
+                % Muscle activations
                  a_costk = B(j+1)*(f_JNM_exp(asynk,exp_A))*h;
                 % Metabolic energy rate
                 if W.MER == 0
@@ -945,13 +936,13 @@ if solveProblem
                 else
                     mE_costk = B(j+1)*(f_JNM_FLVexp(e_tot,exp_E))/body_mass*h;
                 end
+                % Trunk excitations
                 trunk_costk = B(j+1)*(f_Jnq_trunk(e_bk))*h;     
                 % Joint accelerations
                 Qdotdot_costk = B(j+1)*(f_JNq_all(Ak))*h;
-                % Passive torques
+                % Passive joint torques
                 passT_costk = B(j+1)*(f_JNq_act(Tau_passk_all))*h;
-                % Time derivative of muscle activations / muscle-tendon
-                % forces
+                % Time derivative of muscle activations / muscle-tendon forces
                 vA_costk = B(j+1)*(f_JNMact(vAk))*h;
                 dFTtilde_costk = B(j+1)*(f_JNM_FLV(dFTtildek))*h;
                 % All combined
@@ -964,7 +955,6 @@ if solveProblem
             end                              
             % Add path constraints
             % Pelvis residuals
-            Tauk_exp = (ID(mpi).mp.allinterp(k+1,2:7)')./scaling(mpi).mp.T(1);
             g   = {g{:},(Tauk_abs)./scaling(mpi).mp.T(1)};
             % Null pelvis residuals
             lbg = [lbg; zeros(size(Tauk_abs,1),1)];        
@@ -1068,12 +1058,11 @@ if solveProblem
             ubg             = [ubg; 0];
             % Torque-driven joint torques for the trunk
             % Trunk
-            g       = {g{:},Tk(jointi.res_trunki,1)/scaling(mpi).mp.TrunkTau - a_bk};
+            g       = ...
+                {g{:},Tk(jointi.res_trunki,1)/scaling(mpi).mp.TrunkTau - a_bk};
             lbg     = [lbg; zeros(nq.res_trunk,1)];
             ubg 	= [ubg; zeros(nq.res_trunk,1)];
-            % Activation dynamics (implicit formulation)
-            tact = 0.015;
-            tdeact = 0.06;
+            % Activation dynamics (implicit formulation)            
             act1 = vAk*scaling(mpi).mp.vA + ak./(ones(size(ak,1),1)*tdeact);
             act2 = vAk*scaling(mpi).mp.vA + ak./(ones(size(ak,1),1)*tact);
             % act1
@@ -1088,7 +1077,7 @@ if solveProblem
             g               = {g{:},Hilldiffk};
             lbg             = [lbg; zeros(NMuscles_FLV,1)];
             ubg             = [ubg; zeros(NMuscles_FLV,1)];      
-            % Total activations (supra-spinal and reflexes) cannot exceed 1
+            % Total activations (feedback and feedforward) cannot exceed 1
             if spasi == 1
                 g   = {g{:},a_totk(musi_Spas)};
                 lbg = [lbg; zeros(NMuscles_Spas,1)];
@@ -1107,26 +1096,21 @@ if solveProblem
             % New NLP variables for states at end of interval
             if k ~= N-1
                 % Muscle activations
-                ak              = MX.sym(['a_' num2str(k+1)],NMact);
-                w               = {w{:}, ak};
-                lbw             = [lbw; bounds(mpi).mp.a.lower'];
-                ubw             = [ubw; bounds(mpi).mp.a.upper'];
-                w0              = [w0;  guess(mpi).mp.a(k+2,:)'];
+                ak      = MX.sym(['a_' num2str(k+1)],NMact);
+                w       = {w{:}, ak};
+                lbw 	= [lbw; bounds(mpi).mp.a.lower'];
+                ubw 	= [ubw; bounds(mpi).mp.a.upper'];
+                w0      = [w0;  guess(mpi).mp.a(k+2,:)'];
                 % Muscle-tendon forces
-                FTtildek        = MX.sym(['FTtilde_' num2str(k+1)],NMuscles_FLV);
-                w               = {w{:}, FTtildek};
-                lbw             = [lbw; bounds(mpi).mp.FTtilde.lower'];
-                ubw             = [ubw; bounds(mpi).mp.FTtilde.upper'];
-                w0              = [w0;  guess(mpi).mp.FTtilde(k+2,:)'];    
+                FTtildek	= MX.sym(['FTtilde_' num2str(k+1)],NMuscles_FLV);
+                w           = {w{:}, FTtildek};
+                lbw         = [lbw; bounds(mpi).mp.FTtilde.lower'];
+                ubw         = [ubw; bounds(mpi).mp.FTtilde.upper'];
+                w0          = [w0;  guess(mpi).mp.FTtilde(k+2,:)'];    
                 % Qs and Qdots
                 w = {w{:}, Xk{k+2,1}};
-                if boundsi == 1
-                    lbw = [lbw; bounds(mpi).mp.QsQdots.lower'];
-                    ubw = [ubw; bounds(mpi).mp.QsQdots.upper'];
-                elseif boundsi == 2 ||  boundsi == 3 || boundsi == 4 || boundsi == 5 || boundsi == 6
-                    lbw = [lbw; bounds(mpi).mp.QsQdots.lower(k+2,:)'];
-                    ubw = [ubw; bounds(mpi).mp.QsQdots.upper(k+2,:)'];
-                end 
+                lbw = [lbw; bounds(mpi).mp.QsQdots.lower(k+2,:)'];
+                ubw = [ubw; bounds(mpi).mp.QsQdots.upper(k+2,:)'];
                 w0 = [w0;  guess(mpi).mp.QsQdots(k+2,:)'];
                 if spasi == 1
                     % Muscle activations from muscle-tendon force feedback
@@ -1135,42 +1119,37 @@ if solveProblem
                     lbw 	= [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw 	= [ubw; bounds(mpi).mp.a_Ff.upper'];
                     w0  	= [w0;  guess(mpi).mp.a_Ff(k+2,:)'];
-                    % Muscle activations from time derivative of muscle-tendon
-                    % force feedback
+                    % Muscle activations from muscle-tendon force rate
+                    % feedback
                     a_dFfk	= MX.sym(['a_dFf_' num2str(k+1)],NMuscles_Spas);
                     w       = {w{:}, a_dFfk};
                     lbw  	= [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw  	= [ubw; bounds(mpi).mp.a_dFf.upper'];
                     w0    	= [w0;  guess(mpi).mp.a_dFf(k+2,:)'];
                 end
-                % Back activations
-                a_bk            = MX.sym(['a_b_' num2str(k+1)],nq.res_trunk);
-                w               = {w{:}, a_bk};
-                lbw             = [lbw; bounds(mpi).mp.a_b.lower'];
-                ubw             = [ubw; bounds(mpi).mp.a_b.upper'];
-                w0              = [w0;  guess(mpi).mp.a_b(k+2,:)'];
+                % Trunk activations
+                a_bk	= MX.sym(['a_b_' num2str(k+1)],nq.res_trunk);
+                w       = {w{:}, a_bk};
+                lbw     = [lbw; bounds(mpi).mp.a_b.lower'];
+                ubw     = [ubw; bounds(mpi).mp.a_b.upper'];
+                w0      = [w0;  guess(mpi).mp.a_b(k+2,:)'];
             else
                 % Muscle activations
-                ak              = MX.sym(['a_' num2str(k+1)],NMact);
-                w               = {w{:}, ak};
-                lbw             = [lbw; bounds(mpi).mp.a.lower'];
-                ubw             = [ubw; bounds(mpi).mp.a.upper'];
-                w0              = [w0;  guess(mpi).mp.a(end,:)'];
+                ak      = MX.sym(['a_' num2str(k+1)],NMact);
+                w       = {w{:}, ak};
+                lbw     = [lbw; bounds(mpi).mp.a.lower'];
+                ubw     = [ubw; bounds(mpi).mp.a.upper'];
+                w0      = [w0;  guess(mpi).mp.a(end,:)'];
                 % Muscle-tendon forces
-                FTtildek        = MX.sym(['FTtilde_' num2str(k+1)],NMuscles_FLV);
-                w               = {w{:}, FTtildek};
-                lbw             = [lbw; bounds(mpi).mp.FTtilde.lower'];
-                ubw             = [ubw; bounds(mpi).mp.FTtilde.upper'];
-                w0              = [w0;  guess(mpi).mp.FTtilde(end,:)'];    
+                FTtildek	= MX.sym(['FTtilde_' num2str(k+1)],NMuscles_FLV);
+                w           = {w{:}, FTtildek};
+                lbw         = [lbw; bounds(mpi).mp.FTtilde.lower'];
+                ubw         = [ubw; bounds(mpi).mp.FTtilde.upper'];
+                w0          = [w0;  guess(mpi).mp.FTtilde(end,:)'];    
                 % Qs and Qdots
                 w = {w{:}, Xk{k+2,1}};
-                if boundsi == 1
-                    lbw	= [lbw; bounds(mpi).mp.QsQdots.lower'];
-                    ubw	= [ubw; bounds(mpi).mp.QsQdots.upper'];
-                elseif boundsi == 2 ||  boundsi == 3 || boundsi == 4 || boundsi == 5 || boundsi == 6 
-                    lbw	= [lbw; bounds(mpi).mp.QsQdots.lower(end,:)'];
-                    ubw = [ubw; bounds(mpi).mp.QsQdots.upper(end,:)'];
-                end
+                lbw	= [lbw; bounds(mpi).mp.QsQdots.lower(end,:)'];
+                ubw = [ubw; bounds(mpi).mp.QsQdots.upper(end,:)'];
                 w0 = [w0;  guess(mpi).mp.QsQdots(end,:)'];
                 if spasi == 1
                     % Muscle activations from muscle-tendon force feedback
@@ -1179,20 +1158,20 @@ if solveProblem
                     lbw   	= [lbw; bounds(mpi).mp.a_Ff.lower'];
                     ubw    	= [ubw; bounds(mpi).mp.a_Ff.upper'];
                     w0    	= [w0;  guess(mpi).mp.a_Ff(end,:)'];
-                    % Muscle activations from time derivative of muscle-tendon
-                    % force feedback
+                    % Muscle activations from muscle-tendon force rate
+                    % feedback
                     a_dFfk 	= MX.sym(['a_dFf_' num2str(k+1)],NMuscles_Spas);
                     w     	= {w{:}, a_dFfk};
                     lbw    	= [lbw; bounds(mpi).mp.a_dFf.lower'];
                     ubw    	= [ubw; bounds(mpi).mp.a_dFf.upper'];
                     w0     	= [w0;  guess(mpi).mp.a_dFf(end,:)'];
                 end
-                % Back activations
-                a_bk            = MX.sym(['a_b_' num2str(k+1)], nq.res_trunk);
-                w               = {w{:}, a_bk};
-                lbw             = [lbw; bounds(mpi).mp.a_b.lower'];
-                ubw             = [ubw; bounds(mpi).mp.a_b.upper'];
-                w0              = [w0;  guess(mpi).mp.a_b(end,:)'];
+                % Trunk activations
+                a_bk	= MX.sym(['a_b_' num2str(k+1)], nq.res_trunk);
+                w       = {w{:}, a_bk};
+                lbw     = [lbw; bounds(mpi).mp.a_b.lower'];
+                ubw     = [ubw; bounds(mpi).mp.a_b.upper'];
+                w0      = [w0;  guess(mpi).mp.a_b(end,:)'];
             end
             % Rescale variables to impose equality constraints
             Xk_end = (Xk_nsc_end)./scaling(mpi).mp.QsQdots';
@@ -1213,7 +1192,7 @@ if solveProblem
         end   
         % Periodic constraints
         % Periodicity on joint states
-        % All states but Q pelvis_tx, trunk included
+        % All states but Q pelvis_tx
         idx_per = [2*jointi.pelvis.list-1:2*jointi.pelvis.tilt,...
             2*jointi.pelvis.tx:2*jointi.trunk.rot];
         g   = {g{:}, Xk_end(idx_per)-X0(idx_per,1)};
@@ -1386,7 +1365,7 @@ if analyseResults
             end 
             tempi = tempi + 2*NMuscles_Spas;            
         end
-        % Back activations
+        % Trunk activations
         a_b_opt(mpi).mp = zeros(N+1,nq.res_trunk);
         for i = 1:nq.res_trunk
             a_b_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
@@ -1408,7 +1387,7 @@ if analyseResults
                 NMact+NMuscles_FLV+i:Nwl:Nw_acc+Nw);
         end
         tempi = Nw_acc+NParameters+NStates+NMact+NMuscles_FLV+nq.res;
-        % Back excitations
+        % Trunk excitations
         e_b_opt(mpi).mp = zeros(N,nq.res_trunk);
         for i = 1:nq.res_trunk
             e_b_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw); 
@@ -1502,7 +1481,7 @@ if analyseResults
         % Controls at mesh points
         % Time derivative of Qdots
         qdotdot_opt_unsc(mpi).mp.rad = qdotdot_opt(mpi).mp.*repmat(scaling(mpi).mp.Qdotdots,size(qdotdot_opt(mpi).mp,1),1);
-        % Back activations
+        % Trunk activations
         a_b_opt_unsc(mpi).mp = a_b_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.a_b,size(a_b_opt(mpi).mp(1:end-1,:),1),size(a_b_opt(mpi).mp,2));
         e_b_opt_unsc(mpi).mp = e_b_opt(mpi).mp.*repmat(scaling(mpi).mp.e_b,size(e_b_opt(mpi).mp,1),size(e_b_opt(mpi).mp,2));
         % Convert in degrees
@@ -1510,8 +1489,6 @@ if analyseResults
         qdotdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]) = qdotdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]).*180/pi;
         % Time derivative of muscle activations (states)
         vA_opt_unsc(mpi).mp = vA_opt(mpi).mp.*repmat(scaling(mpi).mp.vA,size(vA_opt(mpi).mp,1),size(vA_opt(mpi).mp,2));
-        tact = 0.015;
-        tdeact = 0.06;
         % Get muscle excitations from time derivative of muscle activations
         % Time derivative of muscle-tendon forces
         dFTtilde_opt_unsc(mpi).mp = dFTtilde_opt(mpi).mp.*repmat(scaling(mpi).mp.dFTtilde,size(dFTtilde_opt(mpi).mp,1),size(dFTtilde_opt(mpi).mp,2));
