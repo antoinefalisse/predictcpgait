@@ -25,8 +25,8 @@ close all;
 % num_set(6): set to 1 to write motion file starting at right heel strike
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
-num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-% num_set = [0,1,1,0,0,0,0]; % This configuration analyzes the results
+% num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
+num_set = [0,1,1,0,0,0,0]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
@@ -1283,18 +1283,15 @@ if analyseResults
     %% Extract results
     % All optimized design variables are saved in a single column vector      
     % Number of design variables  
-    NControls = NMact+NMuscles_FLV+nq.res;
-    NStates = NMact+NMuscles_FLV+2*nq.res;
-    NParameters = 0;
-    NParameters = NParameters + 1;        
+    NControls = NMact+NMuscles_FLV+nq.res+nq.res_trunk;
+    NStates = NMact+NMuscles_FLV+2*nq.res+nq.res_trunk;
+    NParameters = 1;
     if NSyn ~= 99        
         NParameters = NParameters + NMuscles*NSyn;   
     end
     if spasi == 1
         NStates = NStates+2*NMuscles_Spas;
     end    
-    NControls = NControls+nq.res_trunk;
-    NStates = NStates+nq.res_trunk;
     % In the loop
     Nwl = NControls+d*NStates+NStates;
     % In total
@@ -1347,20 +1344,20 @@ if analyseResults
         count = 0;
         for i = 1:2:2*nq.res
             count = count +1;
-            q_opt(mpi).mp(:,count)      = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i:Nwl:Nw_acc+Nw);
-            qdot_opt(mpi).mp(:,count)   = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i+1:Nwl:Nw_acc+Nw);
+            q_opt(mpi).mp(:,count) = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i:Nwl:Nw_acc+Nw);
+            qdot_opt(mpi).mp(:,count) = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i+1:Nwl:Nw_acc+Nw);
         end
         qqdot_opt(mpi).mp = zeros(N+1,2*nq.res); 
         qqdot_opt(mpi).mp(:,1:2:end) = q_opt(mpi).mp;
         qqdot_opt(mpi).mp(:,2:2:end) = qdot_opt(mpi).mp;
         tempi = Nw_acc+NParameters+NMact+NMuscles_FLV+2*nq.res;
         if spasi == 1
-            % Muscle activations from muscle-tendon force feedback and time derivative 
-            % of muscle-tendon force feedback
+            % Muscle activations from muscle-tendon force feedback and 
+            % muscle-tendon force rate feedback
             a_Ff_opt(mpi).mp = zeros(N+1,NMuscles_Spas); 
             a_dFf_opt(mpi).mp = zeros(N+1,NMuscles_Spas);
             for i = 1:NMuscles_Spas
-                a_Ff_opt(mpi).mp(:,i) =  w_opt(tempi+i:Nwl:Nw_acc+Nw);
+                a_Ff_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
                 a_dFf_opt(mpi).mp(:,i) = w_opt(tempi+NMuscles_Spas+i:Nwl:Nw_acc+Nw);
             end 
             tempi = tempi + 2*NMuscles_Spas;            
@@ -1369,24 +1366,25 @@ if analyseResults
         a_b_opt(mpi).mp = zeros(N+1,nq.res_trunk);
         for i = 1:nq.res_trunk
             a_b_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
-        end           
+        end     
+        tempi = tempi + nq.res_trunk; 
         % Time derivative of muscle activations and muscle-tendon forces
         vA_opt(mpi).mp = zeros(N,NMact);
         for i = 1:NMact
-            vA_opt(mpi).mp(:,i) = w_opt(Nw_acc+NParameters+NStates+i:Nwl:Nw_acc+Nw);
+            vA_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end
+        tempi = tempi + NMact; 
         dFTtilde_opt(mpi).mp = zeros(N,NMuscles_FLV);
         for i = 1:NMuscles_FLV
-            dFTtilde_opt(mpi).mp(:,i)   = w_opt(Nw_acc+NParameters+NStates+...
-                NMact+i:Nwl:Nw_acc+Nw);
+            dFTtilde_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end
+        tempi = tempi + NMuscles_FLV; 
         % Time derivative of joint velocities
         qdotdot_opt(mpi).mp = zeros(N,nq.res);
         for i = 1:nq.res
-            qdotdot_opt(mpi).mp(:,i)    = w_opt(Nw_acc+NParameters+NStates+...
-                NMact+NMuscles_FLV+i:Nwl:Nw_acc+Nw);
+            qdotdot_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end
-        tempi = Nw_acc+NParameters+NStates+NMact+NMuscles_FLV+nq.res;
+        tempi = tempi + nq.res;
         % Trunk excitations
         e_b_opt(mpi).mp = zeros(N,nq.res_trunk);
         for i = 1:nq.res_trunk
@@ -1642,9 +1640,6 @@ if analyseResults
     %% Reconstruct cost function and compute metabolic cost
     J_opt           = 0;
     Qs_cost         = 0;
-    GRF_cost        = 0;
-    GRM_cost        = 0;
-    ID_cost         = 0;
     a_cost          = 0;
     a_cost_temp     = 0;
     Qdotdots_cost   = 0;
@@ -1732,26 +1727,11 @@ if analyseResults
                 Qs_cost_optk = W.TrackTD*B(j+1)*(f_JNq_bpty(qqdot_opt(mpi).mp(k,Qsi(jointi.res_bptyi))-...
                     Qs(mpi).mp.allinterpfilt(k,jointi.res_bptyi+1)... 
                     ./scaling(mpi).mp.Qs(jointi.res_bptyi)))*h_opt;
-                Qs_cost = Qs_cost + Qs_cost_optk;
-                GRF_cost_optk = W.GRF*B(j+1)*(f_J6((out_res_opt(mpi).mp(k,GRFi.all)./scaling(mpi).mp.GRF)-...
-                    GRF(mpi).mp.val.allinterp(k,2:end)./scaling(mpi).mp.GRF))*h_opt;
-                GRF_cost = GRF_cost + GRF_cost_optk;
-                GRM_cost_optk = W.GRM*B(j+1)*(f_J6((out_res_opt(mpi).mp(k,GRMi.all)./scaling(mpi).mp.GRM)-...
-                    GRF(mpi).mp.MorGF.allinterp(k,2:end)./scaling(mpi).mp.GRM))*h_opt;
-                GRM_cost = GRM_cost + GRM_cost_optk;
-                ID_cost_optk = W.ID_act*B(j+1)*(f_JNq_act((out_res_opt(mpi).mp(k,jointi.res_bgpi)./scaling(mpi).mp.T(1))-...
-                    ID(mpi).mp.allinterp(k,2+nq.res_gp:end)./scaling(mpi).mp.T(1)))*h_opt;
-                ID_cost = ID_cost + ID_cost_optk;
-                
-                track_terms_optk = Qs_cost_optk + GRF_cost_optk +...
-                    GRM_cost_optk + ID_cost_optk;
-                % Motor control terms
-                if acti == 0
-                    a_cost_optk = W.Act*B(j+1)*(f_JNM_exp(a_tot_opt(mpi).mp(k,:),exp_A))*h_opt;
-                elseif acti == 1                
-                    a_cost_optk = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),exp_A))*h_opt;
-                    a_cost_optk_temp = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),1))*h_opt;
-                end
+                Qs_cost = Qs_cost + Qs_cost_optk;                
+                track_terms_optk = Qs_cost_optk;
+                % Motor control terms        
+                a_cost_optk = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),exp_A))*h_opt;
+                a_cost_optk_temp = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),1))*h_opt;
                 if W.MER == 0
                     mE_cost_optk = 0;
                 else
@@ -1785,9 +1765,6 @@ if analyseResults
     end
     J_optf = full(J_opt);     
     Qs_costf = full(Qs_cost);
-    GRF_costf = full(GRF_cost);
-    GRM_costf = full(GRM_cost);
-    ID_costf = full(ID_cost);
     Act_costf = full(a_cost);
     Act_costf_temp = full(a_cost_temp);
     Qdotdots_costf = full(Qdotdots_cost);
@@ -1802,20 +1779,19 @@ if analyseResults
         disp(['Issue when reconstructing optimal cost: difference is ',...
             num2str(assertCost)])
     end 
-    cont_ob = [Qs_costf,GRF_costf,GRM_costf,ID_costf,...
+    cont_ob = [Qs_costf,...
         1/dist_norm_opt*Act_costf,...
         1/dist_norm_opt*Qdotdots_costf,1/dist_norm_opt*vA_costf,...
         1/dist_norm_opt*dFTtilde_costf,...
         1/dist_norm_opt*mE_costf,1/dist_norm_opt*trunk_costf,...
         1/dist_norm_opt*passT_costf]./J_optf*100;
-    cont_ob_abs = [Qs_costf,GRF_costf,GRM_costf,ID_costf,...
+    cont_ob_abs = [Qs_costf,...
         1/dist_norm_opt*Act_costf,...
         1/dist_norm_opt*Qdotdots_costf,1/dist_norm_opt*vA_costf,...
         1/dist_norm_opt*dFTtilde_costf,...
         1/dist_norm_opt*mE_costf,1/dist_norm_opt*trunk_costf,...
         1/dist_norm_opt*passT_costf];
-    cont_ob_abs_notNorm = [Qs_costf/W.TrackTD,GRF_costf/W.GRF,GRM_costf/W.GRM,...
-        ID_costf/W.ID_act,...
+    cont_ob_abs_notNorm = [Qs_costf/W.TrackTD,...
         1/dist_norm_opt*Act_costf_temp/W.Act,...
         1/dist_norm_opt*Qdotdots_costf/W.Acc,...
         1/dist_norm_opt*vA_costf/W.u,...
@@ -1884,14 +1860,8 @@ if analyseResults
     %% Reconstruct gait cycle: starting with right heel strike
     % Identify heel strike
     threshold = 30;
-    if ww == 729
+    if ww == 34
         threshold = 28;
-    end
-    if ww == 757
-        threshold = 22;
-    end
-    if ww == 762
-        threshold = 21;
     end
     IC1i = struct('mp',[]);
     for mpi = 1:NPhases
