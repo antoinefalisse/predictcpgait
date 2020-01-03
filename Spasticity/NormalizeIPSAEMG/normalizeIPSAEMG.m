@@ -8,16 +8,15 @@ close all
 clc
 
 %% User settings
-saveNorm = 1;
-saveFilt = 1;
+saveNorm = 0;
+saveFilt = 0;
 
 %% Paths 
 pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
-pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
 
 plotSignals = 0;
 subjects_names = {'subject1'};
@@ -29,7 +28,7 @@ for sn = length(subjects_names)
         muscle = muscles{mu};     
         switch subject
             case 'subject1'
-                load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+                load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
                 Nslowsegment_ham = 4;   Nmedsegment_ham = 0;    Nfastsegment_ham = 4;   % hamstrings (1:8)  
                 Nhamstrings = Nslowsegment_ham + Nmedsegment_ham + Nfastsegment_ham;
                 Nslowsegment_rf = 2;    Nmedsegment_rf = 0;     Nfastsegment_rf = 4;    % rectus femoris (9:14)
@@ -39,7 +38,9 @@ for sn = length(subjects_names)
                 side = 'right';
                 offsetleft = 0;                      
         end        
-        Misc.savefolder = [pathOpenSimModel,subject,'\EMG\IPSA'];        
+        Misc.savefolder = [pathOpenSimModel,subject,'/EMG/IPSA'];       
+        pathParameterEstimation = ...
+            [pathOpenSimModel,'/',subject,'/ParameterEstimation/'];
         if strcmp(side,'right')
             side_lc = 'r';
             side_LC = 'R';
@@ -95,8 +96,7 @@ for sn = length(subjects_names)
             % 5. Normalize        
             emg1processed = emg1_ss_hp_rec_low6_10;
             % Load scaling factors  
-            load([pathParameterEstimation,'\Results\',...
-                subject,'\ParameterEstimationResults.mat']);      
+            load([pathParameterEstimation,'ParameterEstimationResults.mat']);      
             switch muscle
                 case 'hamstrings'
                     muscle_spa_names = {'bi_fem_lh_','semimem_','semiten_'}; 
@@ -142,16 +142,16 @@ for sn = length(subjects_names)
                 set(sp,'Fontsize',20);
             end
             trial = ['segment_' int2str(ms)];  
-            path_filename = [Misc.savefolder,'\Stretch_',trial];
+            path_filename = [Misc.savefolder,'/Stretch_',trial];
             if ~(exist(path_filename,'dir')==7)
                 mkdir(path_filename);
             end
             if saveNorm
-                save([path_filename,'\emg1_norm_personalized'],...
+                save([path_filename,'/emg1_norm_personalized'],...
                     'emg1processednorm');
             end
             if saveFilt
-                save([path_filename,'\emg1_filt'],'emg1processed'); 
+                save([path_filename,'/emg1_filt'],'emg1processed'); 
             end
             clear emg1processednorm
             clear emg1processed
@@ -262,16 +262,16 @@ for sn = length(subjects_names)
                 set(sp,'Fontsize',20);
             end
             trial = ['segment_' int2str(ms)];            
-            path_filename = [Misc.savefolder,'\Stretch_',trial]; 
+            path_filename = [Misc.savefolder,'/Stretch_',trial]; 
             if ~(exist(path_filename,'dir')==7)
                 mkdir(path_filename);
             end
             if saveNorm
-                save([path_filename,'\emg2_norm_personalized'],...
+                save([path_filename,'/emg2_norm_personalized'],...
                     'emg2processednorm');
             end
             if saveFilt
-                save([path_filename,'\emg2_filt'],'emg2processed'); 
+                save([path_filename,'/emg2_filt'],'emg2processed'); 
             end
             clear emg2processednorm
             clear emg2processed

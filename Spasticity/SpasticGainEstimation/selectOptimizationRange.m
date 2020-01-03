@@ -9,7 +9,7 @@ pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
 
 subjects_names = {'subject1'};
 joints = {'knee','ankle'};
@@ -23,7 +23,7 @@ for sn = 1:length(subjects_names)
     switch subject_name
         case 'subject1'
             subject = subject_name;
-            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+            load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
             switch joint
                 case 'knee'
                     segment_sel = 6:8;
@@ -32,13 +32,13 @@ for sn = 1:length(subjects_names)
             end               
             segment_sel_all = 1:22;
     end
-   savefolder = [pathOpenSimModel,subject,'\Spasticity\SpasticGainEstimation'];
+   savefolder = [pathOpenSimModel,subject,'/Spasticity/SpasticGainEstimation'];
     if exist('segment_sel','var') == 0
         continue
     end  
     Nsegment = length(segment_sel);              
     SelectRangeOnset = zeros(Nsegment,2);  
-    load([savefolder,'\onset_man_user']);
+    load([savefolder,'/onset_man_user']);
     for ms = 1:Nsegment      
         % They changed the way ISA are structured, now GAS corresponds to 1
         % MEH corresponds to 2, REF corresponds to 3
@@ -54,9 +54,9 @@ for sn = 1:length(subjects_names)
         
         trial = ['segment_' int2str(segment_sel(ms))];
         load([pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat']);
+            '/EMG/IPSA/',['Stretch_',trial],'/emg1_norm_personalized.mat']);
         load([pathOpenSimModel,subject,...
-            '\IK\','IPSA\',['JointAngles_',trial,'_range.mat']]);
+            '/IK/','IPSA/',['JointAngles_',trial,'_range.mat']]);
         if isnan(allsegments(segment_sel(ms)).(onset_idx))
             SelectRangeOnset(ms,:) = 100;
         % No low velocity trials since not used for estimation
@@ -76,8 +76,8 @@ for sn = 1:length(subjects_names)
         plot([onset_man(segment_sel(ms))+120-range(1)-1,...
             onset_man(segment_sel(ms))+120-range(1)-1],ylim,'k:',...
             'linewidth',2);
-        if exist([savefolder,'\SelectRangeOnset_',joint,'.mat'],'file')==2
-            load([savefolder,'\SelectRangeOnset_',joint,'.mat']);
+        if exist([savefolder,'/SelectRangeOnset_',joint,'.mat'],'file')==2
+            load([savefolder,'/SelectRangeOnset_',joint,'.mat']);
             pl(2) = plot([SelectRangeOnset3(segment_sel(ms),1),...
                 SelectRangeOnset3(segment_sel(ms),1)],ylim,'b:',...
                 'linewidth',2);
@@ -125,12 +125,12 @@ for sn = 1:length(subjects_names)
     end
 
     SelectRangeOnset_temp = round(SelectRangeOnset);
-    if ~(exist([savefolder,'\SelectRangeOnset_',joint,'_user.mat'],...
+    if ~(exist([savefolder,'/SelectRangeOnset_',joint,'_user.mat'],...
             'file')==2) 
         SelectRangeOnset3 = 10*ones(size(segment_sel_all,2),2);
     end
     SelectRangeOnset3(segment_sel,:) = SelectRangeOnset_temp;
-    save([savefolder,'\SelectRangeOnset_',joint,'_user'],...
+    save([savefolder,'/SelectRangeOnset_',joint,'_user'],...
         'SelectRangeOnset3');
     end
 end

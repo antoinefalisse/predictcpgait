@@ -14,11 +14,10 @@ pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
-pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
-Misc.pathMuscleModel = [pathRepo,'\MuscleModel\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
+Misc.pathMuscleModel = [pathRepo,'/MuscleModel/'];
 addpath(genpath(Misc.pathMuscleModel));
-pathVariousFunctions = [pathRepo,'\VariousFunctions\'];
+pathVariousFunctions = [pathRepo,'/VariousFunctions/'];
 addpath(genpath(pathVariousFunctions));
 
 % Different cases being considered
@@ -56,12 +55,14 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     switch Misc.subject_name
         case 'subject1'
             subject = Misc.subject_name;
-            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+            load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
             % Affected side
             sidename = 'RIGHT';
     end        
     Misc.savefolder = [pathOpenSimModel,subject,...
-        '\Spasticity\ForwardSimulations\IPSA'];
+        '/Spasticity/ForwardSimulations/IPSA'];
+    pathParameterEstimation = ...
+        [pathOpenSimModel,'/',subject,'/ParameterEstimation/'];
     
     %% Various inputs 
     % Muscles and DOFs
@@ -120,9 +121,9 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
             ['Stretch_',trial],['MuscleAnalysis_',...
             trial,'_MuscleAnalysis_']);
         EMG_path_agonist(ms).MS = [pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat'];
+            '/EMG/IPSA/',['Stretch_',trial],'/emg1_norm_personalized.mat'];
         EMG_path_antagonist(ms).MS = [pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg2_norm_personalized.mat'];            
+            '/EMG/IPSA/',['Stretch_',trial],'/emg2_norm_personalized.mat'];            
     end
 
     %% Optional Input Arguments
@@ -137,8 +138,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     Misc.f_order_IK = 4;            % order frequency filtering IK
 
     %% MT-parameters optimized during parameter optimization
-    load([pathParameterEstimation,'\Results\',subject,...
-        '\MTParameters_personalized.mat']); 
+    load([pathParameterEstimation,'MTParameters_personalized.mat']); 
     MTParameters_side = MTParameters(:,vecAll);    
     for m = 1:length(Misc.MuscleNames_Input)
         Misc.params_scaled(:,m) = ...
@@ -150,7 +150,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
         trial = ['segment_' int2str(Misc.segment_sel_all(ms))];
         Misc.allsegments(ms).MS = allsegments(Misc.segment_sel_all(ms));
         Misc.range(ms).MS = load([pathOpenSimModel,subject,...
-            '\IK\','IPSA\',['JointAngles_',trial,'_range.mat']]);
+            '/IK/','IPSA/',['JointAngles_',trial,'_range.mat']]);
     end
 
     %% Solve the problem 

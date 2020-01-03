@@ -15,9 +15,8 @@ pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
-pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
-Misc.pathMuscleModel = [pathRepo,'\MuscleModel\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
+Misc.pathMuscleModel = [pathRepo,'/MuscleModel/'];
 addpath(genpath(Misc.pathMuscleModel));
 
 %% Settings
@@ -62,7 +61,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
                 case 'ankle'
                     Misc.segment_sel_all = 19:22; 
             end        
-    end            
+    end   
     % Available combinations of 3 fast pasive stretch motions
     C3 = nchoosek(Misc.segment_sel_all,3);  
     % Pre-selected combination index
@@ -75,14 +74,16 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     switch Misc.subject_name
         case 'subject1'
             subject = Misc.subject_name;
-            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+            load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
             % Affected side
             sidename = 'RIGHT';        
     end
-    Misc.savefolder = [pathOpenSimModel,subject,
-        '\Spasticity\SpasticGainEstimation'];
+    pathParameterEstimation = ...
+        [pathOpenSimModel,'/',subject,'/ParameterEstimation/'];
+    Misc.savefolder = [pathOpenSimModel,subject,...
+        '/Spasticity/SpasticGainEstimation'];
     Misc.savefolderForwardSimulation = [pathOpenSimModel,subject,...
-        '\Spasticity\ForwardSimulations\IPSA'];
+        '/Spasticity/ForwardSimulations/IPSA'];
 
     %% Various inputs 
     % Muscles and DOFs
@@ -141,9 +142,9 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
             ['Stretch_',trial],['MuscleAnalysis_',...
             trial,'_MuscleAnalysis_']);
         EMG_path_agonist(ms).MS = [pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat'];
+            '/EMG/IPSA/',['Stretch_',trial],'/emg1_norm_personalized.mat'];
         EMG_path_antagonist(ms).MS = [pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg2_norm_personalized.mat'];           
+            '/EMG/IPSA/',['Stretch_',trial],'/emg2_norm_personalized.mat'];           
     end
     
     %% Optional Input Arguments
@@ -158,8 +159,7 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     Misc.f_order_IK = 4;            % order frequency filtering IK
             
     %% MT-parameters optimized during parameter optimization
-    load([pathParameterEstimation,'\Results\',subject,...
-        '\MTParameters_personalized.mat']); 
+    load([pathParameterEstimation,'MTParameters_personalized.mat']); 
     MTParameters_side = MTParameters(:,vecAll);    
     for m = 1:length(Misc.MuscleNames_Input)
         Misc.params_scaled(:,m) = ...
@@ -172,15 +172,15 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     % user-based as EMGonset
     switch EMGonset
         case 'pre-selected'
-            load([Misc.savefolder,'\onset_man']);
+            load([Misc.savefolder,'/onset_man']);
         case 'user-based'
-            load([Misc.savefolder,'\onset_man_user']);
+            load([Misc.savefolder,'/onset_man_user']);
     end             
     for ms = 1:Misc.Nsegment
         trial = ['segment_' int2str(segment_sel(ms))];
         Misc.allsegments(ms).MS = allsegments(segment_sel(ms));
         Misc.range(ms).MS = load([pathOpenSimModel,subject,...
-            '\IK\','IPSA\',['JointAngles_',trial,'_range.mat']]);
+            '/IK/','IPSA/',['JointAngles_',trial,'_range.mat']]);
         
         % They changed the way ISA are structured, now GAS corresponds to 1
         % MEH corresponds to 2, REF corresponds to 3
@@ -207,9 +207,9 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
     % selectOptimizationRange first and set user-based as EMGonset
     switch OptRange
         case 'pre-selected'
-            load([Misc.savefolder,'\SelectRangeOnset_',joints{jj}]);
+            load([Misc.savefolder,'/SelectRangeOnset_',joints{jj}]);
         case 'user-based'
-            load([Misc.savefolder,'\SelectRangeOnset_',joints{jj},...
+            load([Misc.savefolder,'/SelectRangeOnset_',joints{jj},...
                 '_user']);
     end   
     range_optimization = SelectRangeOnset3';
@@ -230,12 +230,12 @@ for jjj = 1:length(namesjoints.(Misc.subject_name).ind)
                 EMG_path_antagonist,Misc);  
     end
     number_save = [formulation '_' int2str(segment_sel)];
-    if ~(exist([Misc.savefolder,'\',formulation],'dir')==7)
-        mkdir([Misc.savefolder,'\',formulation]);
+    if ~(exist([Misc.savefolder,'/',formulation],'dir')==7)
+        mkdir([Misc.savefolder,'/',formulation]);
     end
-    save([Misc.savefolder,'\',formulation,'\output_',joints{jj},...
+    save([Misc.savefolder,'/',formulation,'/output_',joints{jj},...
         '_',number_save],'output');
-    save([Misc.savefolder,'\',formulation,'\DatStore_',joints{jj},...
+    save([Misc.savefolder,'/',formulation,'/DatStore_',joints{jj},...
         '_',number_save],'DatStore'); 
     
 end

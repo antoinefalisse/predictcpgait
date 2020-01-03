@@ -20,7 +20,7 @@ clc
 %% User settings
 solveProblem = 0;   % set to 1 to solve problem
 saveResults = 0;    % set to 1 to save results
-saveParameters = 0; % set to 1 to save MT-parameters
+saveParameters = 1; % set to 1 to save MT-parameters
 showResults = 1;    % set to 1 to plot results
 
 %% Problem settings
@@ -50,7 +50,7 @@ pathMain = pwd;
 pathOpenSimModel = [pathRepo,'/OpenSimModel'];
 pathCollocationScheme = [pathRepo,'/CollocationScheme'];
 addpath(genpath(pathCollocationScheme));
-pathResults = [pathMain,'/Results/',subject];
+pathResults = [pathOpenSimModel,'/',subject,'/ParameterEstimation/'];
 pathMuscleModel = [pathRepo,'/MuscleModel/'];
 % Adjusted weights to preserve sum=1 when increasing weight on short
 % fibers. The adjustment accounts for the magnitude of the weight factors.
@@ -224,8 +224,7 @@ for i = 1:length(sides)
         idxEMG(ii,3) = find(strcmp(MuscleNames,Opt_channels{ii})); 
     end
    % Load linearly-scaled MT-parameters
-   load([pathOpenSimModel,'/',subject,'/MTParameters/MTParameters_',...
-       subject,'_MRI_ls_simm_gen.mat']);
+   load([pathResults,'/MTParameters_generic.mat']);
    NMuscles = size(MTParameters,2);
    % Load EMG
    EMGpath = [pathOpenSimModel,'/',subject,'/EMG/Gait/EMG_filt.mat'];
@@ -734,8 +733,7 @@ end
 %% Plot results
 if showResults 
 if ~solveProblem
-    load([pathResults,'/ParameterEstimationResults'],...
-        'ParameterEstimationResults');
+    load([pathResults,'ParameterEstimationResults.mat']);
     PARAMETERSall = ParameterEstimationResults.PARAMETERS;
     activations = ParameterEstimationResults.Activations;
     scale = ParameterEstimationResults.Scale.values;

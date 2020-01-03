@@ -14,9 +14,8 @@ pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
-pathParameterEstimation = [pathRepo,'\ParameterEstimation\'];
-pathMuscleModel = [pathRepo,'\MuscleModel\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
+pathMuscleModel = [pathRepo,'/MuscleModel/'];
 
 %% Loop over cases
 for iii = 1
@@ -31,33 +30,35 @@ end
 % Load data from subjects
 switch subject 
     case 'subject1'
-        load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+        load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
         % Available gait trials
         trialnumbers = {'10','12','13','22'};
         % Affected side
         sidename = 'RIGHT';   
 end
+pathParameterEstimation = ...
+    [pathOpenSimModel,'/',subject,'/ParameterEstimation/'];
 
 %% EMG-driven forward simulations
-savefolder = [pathOpenSimModel,subject,'\Spasticity\ForwardSimulations\Gait'];
+savefolder = [pathOpenSimModel,subject,'/Spasticity/ForwardSimulations/Gait'];
 if ~(exist(savefolder,'dir')==7)
     mkdir(savefolder);
 end
 % Load already existing data if existing
-if (exist([savefolder,'\outputGPOPSFTtilde.mat'],'file')==2)
-    load([savefolder,'\outputGPOPSFTtilde']);
-    load([savefolder,'\HilldiffGPOPSFTtilde']);
-    load([savefolder,'\M_muscles_GPOPSFTtilde']);
-    load([savefolder,'\M_knee_GPOPSFTtilde']);
-    load([savefolder,'\FTGPOPSFTtilde']);
-    load([savefolder,'\FtildeGPOPSFTtilde']);
-    load([savefolder,'\dFtildeGPOPSFTtilde']);
-    load([savefolder,'\MAGPOPSFTtilde']);
-    load([savefolder,'\lMtildeGPOPSFTtilde']);
-    load([savefolder,'\vMtildeGPOPSFTtilde']);
+if (exist([savefolder,'/outputGPOPSFTtilde.mat'],'file')==2)
+    load([savefolder,'/outputGPOPSFTtilde']);
+    load([savefolder,'/HilldiffGPOPSFTtilde']);
+    load([savefolder,'/M_muscles_GPOPSFTtilde']);
+    load([savefolder,'/M_knee_GPOPSFTtilde']);
+    load([savefolder,'/FTGPOPSFTtilde']);
+    load([savefolder,'/FtildeGPOPSFTtilde']);
+    load([savefolder,'/dFtildeGPOPSFTtilde']);
+    load([savefolder,'/MAGPOPSFTtilde']);
+    load([savefolder,'/lMtildeGPOPSFTtilde']);
+    load([savefolder,'/vMtildeGPOPSFTtilde']);
 end
 % Load EMG data (non-normalized)
-pathEMG = [pathOpenSimModel,subject,'\EMG\Gait\'];
+pathEMG = [pathOpenSimModel,subject,'/EMG/Gait/'];
 load([pathEMG,'EMG_filt'],'EMG_filt')
 % Loop over gait trials
 for tn = 1:length(trialnumbers)       
@@ -83,8 +84,8 @@ for tn = 1:length(trialnumbers)
     getMuscleNamesIndices
     % Extract muscle-tendon lengths and moment arms
     path_MuscleAnalysis = [pathOpenSimModel,subject,...
-        '\MuscleAnalysis\Gait\Gait_',trialnumber,side,...
-        '\Gait_',trialnumber,side,'_'];      
+        '/MuscleAnalysis/Gait/Gait_',trialnumber,side,...
+        '/Gait_',trialnumber,side,'_'];      
     [lMT,MA,time_MA,~] = readMuscleAnalysis(path_MuscleAnalysis,MKnee);
     lMT_side = lMT(:,vec);
     MA_side = MA(:,vec);
@@ -103,8 +104,7 @@ for tn = 1:length(trialnumbers)
         length(muscleChannels));
     EMG_ordered_norm2 = zeros(size(EMG_filt.(trialnumbername_lc).data,1),...
         length(muscleChannels));
-    load([pathParameterEstimation,'\Results\',...
-        subject,'\ParameterEstimationResults.mat']); 
+    load([pathParameterEstimation,'ParameterEstimationResults.mat']); 
     for j = 1:length(muscleChannels)
         % Select filtered EMG data
         EMG_ordered(:,j) = EMG_filt.(trialnumbername_lc).data(:,strcmp(...
@@ -127,8 +127,7 @@ for tn = 1:length(trialnumbers)
         interp1(round(EMG_filt.(trialnumbername_lc).data(:,1),4),...
         EMG_ordered_norm2,round(time_MA,4));    
     % MT-parameters optimized during parameter optimization
-    load([pathParameterEstimation,'\Results\',subject,...
-        '\MTParameters_personalized.mat']);    
+    load([pathParameterEstimation,'MTParameters_personalized.mat']);    
     MTParameters_side = MTParameters(:,vecAll);  
     idx_MselInMall_side = zeros(1,length(muscleNamesSel));
     for ii = 1:length(muscleNamesSel)
@@ -147,15 +146,15 @@ for tn = 1:length(trialnumbers)
         pathMuscleModel);
 end
 % Save data
-save([savefolder,'\outputGPOPSFTtilde'],'outputGPOPS');
-save([savefolder,'\HilldiffGPOPSFTtilde'],'HilldiffGPOPS');
-save([savefolder,'\M_muscles_GPOPSFTtilde'],'M_muscles_GPOPS');
-save([savefolder,'\M_knee_GPOPSFTtilde'],'M_knee_GPOPS');
-save([savefolder,'\FTGPOPSFTtilde'],'FTGPOPS');
-save([savefolder,'\FtildeGPOPSFTtilde'],'FtildeGPOPS');
-save([savefolder,'\dFtildeGPOPSFTtilde'],'dFtildeGPOPS');
-save([savefolder,'\MAGPOPSFTtilde'],'MAGPOPS');
-save([savefolder,'\lMtildeGPOPSFTtilde'],'lMtildeGPOPS');
-save([savefolder,'\vMtildeGPOPSFTtilde'],'vMtildeGPOPS');
+save([savefolder,'/outputGPOPSFTtilde'],'outputGPOPS');
+save([savefolder,'/HilldiffGPOPSFTtilde'],'HilldiffGPOPS');
+save([savefolder,'/M_muscles_GPOPSFTtilde'],'M_muscles_GPOPS');
+save([savefolder,'/M_knee_GPOPSFTtilde'],'M_knee_GPOPS');
+save([savefolder,'/FTGPOPSFTtilde'],'FTGPOPS');
+save([savefolder,'/FtildeGPOPSFTtilde'],'FtildeGPOPS');
+save([savefolder,'/dFtildeGPOPSFTtilde'],'dFtildeGPOPS');
+save([savefolder,'/MAGPOPSFTtilde'],'MAGPOPS');
+save([savefolder,'/lMtildeGPOPSFTtilde'],'lMtildeGPOPS');
+save([savefolder,'/vMtildeGPOPSFTtilde'],'vMtildeGPOPS');
 
 end

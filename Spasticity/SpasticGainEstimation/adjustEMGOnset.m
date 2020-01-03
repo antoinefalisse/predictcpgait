@@ -10,7 +10,7 @@ pathmain = pwd;
 [pathSpasticity,~,~] = fileparts(pathmain);
 addpath(genpath(pathSpasticity));
 [pathRepo,~,~] = fileparts(pathSpasticity);
-pathOpenSimModel = [pathRepo,'\OpenSimModel\'];
+pathOpenSimModel = [pathRepo,'/OpenSimModel/'];
 
 subjects_names = {'subject1'};
 for sn = 1:length(subjects_names) 
@@ -19,10 +19,10 @@ for sn = 1:length(subjects_names)
     switch subject_name
         case 'subject1'
             subject = subject_name;
-            load([pathOpenSimModel,subject,'\IPSA\IPSA_data.mat']);
+            load([pathOpenSimModel,subject,'/IPSA/IPSA_data.mat']);
             segment_sel = 1:22;            
     end      
-    savefolder = [pathOpenSimModel,subject,'\Spasticity\SpasticGainEstimation'];
+    savefolder = [pathOpenSimModel,subject,'/Spasticity/SpasticGainEstimation'];
     Nsegment = length(segment_sel);              
     onset_man = zeros(Nsegment,1);                
     for ms = 1:Nsegment     
@@ -57,7 +57,7 @@ for sn = 1:length(subjects_names)
         trial = ['segment_' int2str(segment_sel(ms))];
         % Load EMG
         load([pathOpenSimModel,subject,...
-            '\EMG\IPSA\',['Stretch_',trial],'\emg1_norm_personalized.mat']);
+            '/EMG/IPSA/',['Stretch_',trial],'/emg1_norm_personalized.mat']);
         figure(segment_sel(ms))
         plot(emg1processednorm(:,1),'linewidth',2); hold on;
         pl = plot([allsegments(ms).(onset_idx) allsegments(ms).(onset_idx)],...
@@ -82,6 +82,6 @@ for sn = 1:length(subjects_names)
     if ~(exist(savefolder,'dir')==7)
         mkdir(savefolder);
     end
-    save([savefolder,'\onset_man_user'],'onset_man');
+    save([savefolder,'/onset_man_user'],'onset_man');
 end
     
