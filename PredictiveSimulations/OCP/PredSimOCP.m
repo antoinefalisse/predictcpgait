@@ -103,10 +103,10 @@ end
 pathExternalFunctions = [pathPredictiveSimulations,'/ExternalFunctions'];
 % Loadi external function   
 cd(pathExternalFunctions);
-F = external('F',['TrackSim_EF_SSCM1_pos.dll']); % TODO
+F = external('F','PredSim_CP.dll');
 cd(pathmain);
 % This is an example of how to call an external function with numerical values.
-% inF = zeros(63,1);
+% inF = rand(63,1);
 % outF = full(F(inF));
 
 % Indices elements in external function F

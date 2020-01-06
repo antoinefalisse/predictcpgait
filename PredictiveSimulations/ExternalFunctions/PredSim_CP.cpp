@@ -1,3 +1,7 @@
+/*  This code describes the OpenSim model and the skeleton dynamics
+    Author: Antoine Falisse
+    Contributor: Joris Gillis, Gil Serrancoli, Chris Dembia
+*/
 #include <OpenSim/Simulation/Model/Model.h>
 #include <OpenSim/Simulation/SimbodyEngine/PlanarJoint.h>
 #include <OpenSim/Simulation/SimbodyEngine/PinJoint.h>
@@ -11,7 +15,7 @@
 #include <OpenSim/Simulation/Model/ConditionalPathPoint.h>
 #include <OpenSim/Simulation/Model/MovingPathPoint.h>
 #include <OpenSim/Simulation/Model/HuntCrossleyForce_smooth.h>
-#include <recorder.hpp>
+#include "SimTKcommon/internal/recorder.h"
 
 #include <iostream>
 #include <iterator>
@@ -24,33 +28,81 @@
 using namespace SimTK;
 using namespace OpenSim;
 
-// Declare inputs/outputs of function F
+/*  The function F describes the OpenSim model and, implicitly, the skeleton
+    dynamics. F takes as inputs joint positions and velocities (states x),
+    joint accelerations (controls u), and returns the joint torques as well as
+    several variables for use in the optimal control problems. F is templatized
+    using type T. F(x,u)->(r).
+*/
+
+// Inputs/outputs of function F
 /// number of vectors in inputs/outputs of function F
 constexpr int n_in = 2;
 constexpr int n_out = 1;
 /// number of elements in input/output vectors of function F
-constexpr int ndof = 21;        // degrees of freedom
-constexpr int NX = ndof*2;      // states
-constexpr int NU = ndof;        // controls
-constexpr int NR = ndof+6+6+8;  // residual torques + GRFs + MOMs.
+constexpr int ndof = 21;        // # degrees of freedom
+constexpr int NX = ndof*2;      // # states
+constexpr int NU = ndof;        // # controls
+constexpr int NR = ndof+6+6+8;  // # residual torques + GRFs + GRTs + joint origins
 
-/// Value
+// Helper function value
 template<typename T>
 T value(const Recorder& e) { return e; }
-
 template<>
 double value(const Recorder& e) { return e.getValue(); }
 
-/* Function F, using templated type T
-F(x,u) -> (tau)
-*/
+// OpenSim and Simbody use different indices for the states/controls when the
+// kinematic chain has joints up and down the origin (e.g., lumbar joint/arms
+// and legs with pelvis as origin).
+// The two following functions allow getting the indices from one reference
+// system to the other. These functions are inspired from
+// createSystemYIndexMap() in Moco.
+// getIndicesOSInSimbody() returns the indices of the OpenSim Qs in the Simbody
+// reference system. Note that we only care about the order here so we divide
+// by 2 because the states include both Qs and Qdots.
+SimTK::Array_<int> getIndicesOSInSimbody(const Model& model) {
+    auto s = model.getWorkingState();
+    const auto svNames = model.getStateVariableNames();
+    SimTK::Array_<int> idxOSInSimbody(s.getNQ());
+    s.updQ() = 0;
+    for (int iy = 0; iy < s.getNQ(); ++iy) {
+        s.updQ()[iy] = SimTK::NaN;
+        const auto svValues = model.getStateVariableValues(s);
+        for (int isv = 0; isv < svNames.size(); ++isv) {
+            if (SimTK::isNaN(svValues[isv])) {
+                s.updQ()[iy] = 0;
+                idxOSInSimbody[iy] = isv/2;
+                break;
+            }
+        }
+    }
+    return idxOSInSimbody;
+}
+// getIndicesSimbodyInOS() returns the indices of the Simbody Qs in the OpenSim
+// reference system.
+SimTK::Array_<int> getIndicesSimbodyInOS(const Model& model) {
+    auto idxOSInSimbody = getIndicesOSInSimbody(model);
+    auto s = model.getWorkingState();
+    SimTK::Array_<int> idxSimbodyInOS(s.getNQ());
+	for (int iy = 0; iy < s.getNQ(); ++iy) {
+		for (int iyy = 0; iyy < s.getNQ(); ++iyy) {
+			if (idxOSInSimbody[iyy] == iy) {
+				idxSimbodyInOS[iy] = iyy;
+				break;
+			}
+		}
+	}
+    return idxSimbodyInOS;
+}
 
+// Function F
 template<typename T>
 int F_generic(const T** arg, T** res) {
 
-    // OpenSim model
-    /// bodies
+    // OpenSim model: create components
+    /// Model
     OpenSim::Model* model;
+    /// Bodies
     OpenSim::Body* pelvis;
     OpenSim::Body* femur_r;
     OpenSim::Body* femur_l;
@@ -63,7 +115,7 @@ int F_generic(const T** arg, T** res) {
     OpenSim::Body* toes_r;
     OpenSim::Body* toes_l;
     OpenSim::Body* torso;
-    /// joints
+    /// Joints
     OpenSim::CustomJoint* ground_pelvis;
     OpenSim::CustomJoint* hip_r;
     OpenSim::CustomJoint* hip_l;
@@ -76,7 +128,7 @@ int F_generic(const T** arg, T** res) {
     OpenSim::WeldJoint* mtp_r;
     OpenSim::WeldJoint* mtp_l;
     OpenSim::CustomJoint* back;
-    /// contact elements
+    /// Contact elements
     OpenSim::HuntCrossleyForce_smooth* HC_1_r;
     OpenSim::HuntCrossleyForce_smooth* HC_2_r;
     OpenSim::HuntCrossleyForce_smooth* HC_3_r;
@@ -85,9 +137,11 @@ int F_generic(const T** arg, T** res) {
     OpenSim::HuntCrossleyForce_smooth* HC_2_l;
     OpenSim::HuntCrossleyForce_smooth* HC_3_l;
     OpenSim::HuntCrossleyForce_smooth* HC_4_l;
+
+    // OpenSim model: initialize components
     /// Model
     model = new OpenSim::Model();
-    /// Bodies - Definition
+    /// Body specifications
     pelvis = new OpenSim::Body("pelvis", 3.69727, Vec3(-0.0737526, -0.0226889, 0), Inertia(0.0238289107, 0.0270444653, 0.029685404, 0, 0, 0));
     femur_l = new OpenSim::Body("femur_l", 4.64393, Vec3(0, -0.159112, 0), Inertia(0.078825664, 0.0161678053, 0.078825664, 0, 0, 0));
     femur_r = new OpenSim::Body("femur_r", 4.64393, Vec3(0, -0.161537, 0), Inertia(0.078825664, 0.0161678053, 0.078825664, 0, 0, 0));
@@ -100,8 +154,8 @@ int F_generic(const T** arg, T** res) {
     toes_l = new OpenSim::Body("toes_l", 0.04303, Vec3(0.0259333, -0.0021963, -0.00887), Inertia(4.41333e-005, 0.00011254, 0.000129752, 0, 0, 0));
     toes_r = new OpenSim::Body("toes_r", 0.04303, Vec3(0.0256561, -0.00217283, 0.008775), Inertia(4.41333e-005, 0.00011254, 0.000129752, 0, 0, 0));
     torso = new OpenSim::Body("torso", 16.25541, Vec3(0.0123281, 0.218025, 0), Inertia(0.215542616846467, 0.135378536674077, 0.291668449684595, 0, 0, 0));
-    /// Joints - Transforms
-    // Ground-Pelvis
+    /// Joints
+    /// Ground-Pelvis transform
     SpatialTransform st_ground_pelvis;
     st_ground_pelvis[0].setCoordinateNames(OpenSim::Array<std::string>("lower_torso_RX", 1, 1));
     st_ground_pelvis[0].setFunction(new LinearFunction());
@@ -121,7 +175,7 @@ int F_generic(const T** arg, T** res) {
     st_ground_pelvis[5].setCoordinateNames(OpenSim::Array<std::string>("lower_torso_TZ", 1, 1));
     st_ground_pelvis[5].setFunction(new LinearFunction());
     st_ground_pelvis[5].setAxis(Vec3(0, 0, 1));
-    // Hip_l
+    /// Hip_l transform
     SpatialTransform st_hip_l;
     st_hip_l[0].setCoordinateNames(OpenSim::Array<std::string>("hip_flexion_l", 1, 1));
     st_hip_l[0].setFunction(new LinearFunction());
@@ -132,7 +186,7 @@ int F_generic(const T** arg, T** res) {
     st_hip_l[2].setCoordinateNames(OpenSim::Array<std::string>("hip_rotation_l", 1, 1));
     st_hip_l[2].setFunction(new LinearFunction());
     st_hip_l[2].setAxis(Vec3(0, -1, 0));
-    // Hip_r
+    /// Hip_r transform
     SpatialTransform st_hip_r;
     st_hip_r[0].setCoordinateNames(OpenSim::Array<std::string>("hip_flexion_r", 1, 1));
     st_hip_r[0].setFunction(new LinearFunction());
@@ -143,37 +197,37 @@ int F_generic(const T** arg, T** res) {
     st_hip_r[2].setCoordinateNames(OpenSim::Array<std::string>("hip_rotation_r", 1, 1));
     st_hip_r[2].setFunction(new LinearFunction());
     st_hip_r[2].setAxis(Vec3(0, 1, 0));
-    // Knee_l
+    /// Knee_l transform
     SpatialTransform st_knee_l;
     st_knee_l[2].setCoordinateNames(OpenSim::Array<std::string>("knee_angle_l", 1, 1));
     st_knee_l[2].setFunction(new LinearFunction());
     st_knee_l[2].setAxis(Vec3(0, 0, -1));
-    // Knee_r
+    /// Knee_r transform
     SpatialTransform st_knee_r;
     st_knee_r[2].setCoordinateNames(OpenSim::Array<std::string>("knee_angle_r", 1, 1));
     st_knee_r[2].setFunction(new LinearFunction());
     st_knee_r[2].setAxis(Vec3(0, 0, -1));
-    // Ankle_l
+    /// Ankle_l transform
     SpatialTransform st_ankle_l;
     st_ankle_l[0].setCoordinateNames(OpenSim::Array<std::string>("ankle_angle_l", 1, 1));
     st_ankle_l[0].setFunction(new LinearFunction());
     st_ankle_l[0].setAxis(Vec3(0.104529047112, 0.173649078266, 0.979244441356));
-    // Ankle_r
+    /// Ankle_r transform
     SpatialTransform st_ankle_r;
     st_ankle_r[0].setCoordinateNames(OpenSim::Array<std::string>("ankle_angle_r", 1, 1));
     st_ankle_r[0].setFunction(new LinearFunction());
     st_ankle_r[0].setAxis(Vec3(-0.104529047112, -0.173649078266, 0.979244441356));
-    // Subtalar_l
+    /// Subtalar_l transform
     SpatialTransform st_subtalar_l;
     st_subtalar_l[0].setCoordinateNames(OpenSim::Array<std::string>("subtalar_angle_l", 1, 1));
     st_subtalar_l[0].setFunction(new LinearFunction());
     st_subtalar_l[0].setAxis(Vec3(-0.787180020856, -0.604747016023, -0.120949003205));
-    // Subtalar_r
+    /// Subtalar_r transform
     SpatialTransform st_subtalar_r;
     st_subtalar_r[0].setCoordinateNames(OpenSim::Array<std::string>("subtalar_angle_r", 1, 1));
     st_subtalar_r[0].setFunction(new LinearFunction());
     st_subtalar_r[0].setAxis(Vec3(0.787180020856, 0.604747016023, -0.120949003205));
-    // Back
+    /// Back transform
     SpatialTransform st_back;
     st_back[0].setCoordinateNames(OpenSim::Array<std::string>("lumbar_extension", 1, 1));
     st_back[0].setFunction(new LinearFunction());
@@ -184,7 +238,7 @@ int F_generic(const T** arg, T** res) {
     st_back[2].setCoordinateNames(OpenSim::Array<std::string>("lumbar_rotation", 1, 1));
     st_back[2].setFunction(new LinearFunction());
     st_back[2].setAxis(Vec3(0, 1, 0));
-    /// Joints - Definition
+    /// Joint specifications
     ground_pelvis = new CustomJoint("ground_pelvis", model->getGround(), Vec3(0), Vec3(0), *pelvis, Vec3(0), Vec3(0), st_ground_pelvis);
     hip_l = new CustomJoint("hip_l", *pelvis, Vec3(-0.0384699, -0.0708953, -0.0646186), Vec3(0), *femur_l, Vec3(0), Vec3(0), st_hip_l);
     hip_r = new CustomJoint("hip_r", *pelvis, Vec3(-0.0443968, -0.0673054, 0.0671603), Vec3(0), *femur_r, Vec3(0), Vec3(0), st_hip_r);
@@ -197,7 +251,7 @@ int F_generic(const T** arg, T** res) {
     mtp_l = new WeldJoint("mtp_l", *calcn_l, Vec3(0.149349, -0.001689, -0.000912), Vec3(0), *toes_l, Vec3(0), Vec3(0));
     mtp_r = new WeldJoint("mtp_r", *calcn_r, Vec3(0.147753, -0.001671, 0.000903), Vec3(0), *toes_r, Vec3(0), Vec3(0));
     back = new CustomJoint("back", *pelvis, Vec3(-0.072018, 0.029113, 0), Vec3(0), *torso, Vec3(0), Vec3(0), st_back);
-    /// bodies and joints
+    /// Add bodies and joints to model
     model->addBody(pelvis);		    model->addJoint(ground_pelvis);
     model->addBody(femur_l);		model->addJoint(hip_l);
     model->addBody(femur_r);		model->addJoint(hip_r);
@@ -265,7 +319,8 @@ int F_generic(const T** arg, T** res) {
     HC_3_r->connectSocket_body_sphere(*calcn_r);
     model->addComponent(HC_4_r);
     HC_4_r->connectSocket_body_sphere(*calcn_r);
-    /// Initialize  system and state.
+
+    // Initialize system and state
     SimTK::State* state;
     state = new State(model->initSystem());
 
@@ -278,34 +333,30 @@ int F_generic(const T** arg, T** res) {
     Vector QsUs(NX); /// joint positions (Qs) and velocities (Us) - states
 
     // Assign inputs to model variables
-    for (int i = 0; i < NX; ++i) QsUs[i] = x[i];    // states
-    for (int i = 0; i < 12; ++i) ua[i] = u[i];      // controls
-    ua[12] = u[18]; // 12 Simbody (lumbar-ext) is 18 OpenSim
-    ua[13] = u[19]; // 13 Simbody (lumbar-bend) is 19 OpenSim
-    ua[14] = u[20]; // 14 Simbody (lumbar-rot) is 20 OpenSim
-    ua[15] = u[12]; // 15 Simbody (knee-angle-l) is 12 OpenSim
-    ua[16] = u[13]; // 16 Simbody (knee-angle-r) is 13 OpenSim
-    ua[17] = u[14]; // 17 Simbody (ankle-angle-l) is 14 OpenSim
-    ua[18] = u[15]; // 18 Simbody (ankle-angle-l) is 15 OpenSim
-    ua[19] = u[16]; // 19 Simbody (subtalar-angle-l) is 16 OpenSim
-    ua[20] = u[17]; // 20 Simbody (subtalar-angle-l) is 17 OpenSim
+    /// States
+    for (int i = 0; i < NX; ++i) QsUs[i] = x[i];
+    /// Controls
+    /// OpenSim and Simbody have different state orders so we need to adjust
+    auto indicesOSInSimbody = getIndicesOSInSimbody(*model);
+    for (int i = 0; i < NU; ++i) ua[i] = u[indicesOSInSimbody[i]];
 
+    // Set state variables and realize
     model->setStateVariableValues(*state, QsUs);
     model->realizeVelocity(*state);
 
-    // Residual forces
+    // Compute residual forces
     /// appliedMobilityForces (# mobilities)
     Vector appliedMobilityForces(ndof);
     appliedMobilityForces.setToZero();
     /// appliedBodyForces (# bodies + ground)
     Vector_<SpatialVec> appliedBodyForces;
-    int nbodies = model->getBodySet().getSize() + 1; // including ground
+    int nbodies = model->getBodySet().getSize() + 1;
     appliedBodyForces.resize(nbodies);
     appliedBodyForces.setToZero();
-    /// Gravity
+    /// Set gravity
     Vec3 gravity(0);
     gravity[1] = -9.81;
-    /// Weight
+    /// Add weights to appliedBodyForces
     for (int i = 0; i < model->getBodySet().getSize(); ++i) {
         model->getMatterSubsystem().addInStationForce(*state,
             model->getBodySet().get(i).getMobilizedBodyIndex(),
@@ -351,17 +402,14 @@ int F_generic(const T** arg, T** res) {
     GRF_4_l[1] = Vec3(Force_values_4_l[6], Force_values_4_l[7], Force_values_4_l[8]);
     int ncalcn_l = model->getBodySet().get("calcn_l").getMobilizedBodyIndex();
     appliedBodyForces[ncalcn_l] = appliedBodyForces[ncalcn_l] + GRF_1_l + GRF_2_l + GRF_3_l + GRF_4_l;
-    // Ground reaction forces
+    /// Ground reaction forces
     SpatialVec GRF_r = GRF_1_r + GRF_2_r + GRF_3_r + GRF_4_r;
     SpatialVec GRF_l = GRF_1_l + GRF_2_l + GRF_3_l + GRF_4_l;
-
     /// knownUdot
     Vector knownUdot(ndof);
     knownUdot.setToZero();
-    for (int i = 0; i < ndof; ++i) {
-        knownUdot[i] = ua[i];
-    }
-    // Residual forces
+    for (int i = 0; i < ndof; ++i) knownUdot[i] = ua[i];
+    /// Calculate residual forces
     Vector residualMobilityForces(ndof);
     residualMobilityForces.setToZero();
     model->getMatterSubsystem().calcResidualForceIgnoringConstraints(*state,
@@ -369,7 +417,6 @@ int F_generic(const T** arg, T** res) {
         residualMobilityForces);
 
     // Calculate contact torques about the ground origin
-    // Step: calculate contact point positions in body frames
     /// sphere 1 left
     Vec3 pos_InGround_HC_s1_l = calcn_l->findStationLocationInGround(*state, locSphere_s1_l);
     Vec3 contactPointpos_InGround_HC_s1_l = pos_InGround_HC_s1_l - radiusSphere*normal;
@@ -410,7 +457,7 @@ int F_generic(const T** arg, T** res) {
     Vec3 contactPointpos_InGround_HC_s4_r = pos_InGround_HC_s4_r - radiusSphere*normal;
     Vec3 contactPointpos_InGround_HC_s4_r_adj = contactPointpos_InGround_HC_s4_r - 0.5*contactPointpos_InGround_HC_s4_r[1]*normal;
     Vec3 contactPointPos_InBody_HC_s4_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s4_r_adj, *calcn_r);
-    // Contact forces
+    /// Contact forces
     Vec3 AppliedPointForce_s1_r = GRF_1_r[1];
     Vec3 AppliedPointForce_s2_r = GRF_2_r[1];
     Vec3 AppliedPointForce_s3_r = GRF_3_r[1];
@@ -434,57 +481,54 @@ int F_generic(const T** arg, T** res) {
     AppliedPointTorque_s3_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s3_r) % AppliedPointForce_s3_r;
     AppliedPointTorque_s4_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s4_r) % AppliedPointForce_s4_r;
     /// Contact torques
-    Vec3 MOM_l, MOM_r;
-    MOM_l = AppliedPointTorque_s1_l + AppliedPointTorque_s2_l + AppliedPointTorque_s3_l + AppliedPointTorque_s4_l;
-    MOM_r = AppliedPointTorque_s1_r + AppliedPointTorque_s2_r + AppliedPointTorque_s3_r + AppliedPointTorque_s4_r;
+    Vec3 GRT_l, GRT_r;
+    GRT_l = AppliedPointTorque_s1_l + AppliedPointTorque_s2_l + AppliedPointTorque_s3_l + AppliedPointTorque_s4_l;
+    GRT_r = AppliedPointTorque_s1_r + AppliedPointTorque_s2_r + AppliedPointTorque_s3_r + AppliedPointTorque_s4_r;
 
-    // Extract several joint origins to set constraints in problem
+    // Extract several joint origins to set constraints
     Vec3 calcn_or_l  = calcn_l->getPositionInGround(*state);
     Vec3 calcn_or_r  = calcn_r->getPositionInGround(*state);
     Vec3 tibia_or_l  = tibia_l->getPositionInGround(*state);
     Vec3 tibia_or_r  = tibia_r->getPositionInGround(*state);
 
-     //CasADi may not always request all outputs
-     //if res[i] is a null pointer, this means that output i is not required
+    // Extract results
     int nc = 3; // # components in Vec3
-    if (res[0]) {
-        for (int i = 0; i < 12; ++i) {
-            res[0][i] = value<T>(residualMobilityForces[i]); // residual torques
-        }
-        // order adjusted since order Simbody is different than order OpenSim
-        res[0][12] = value<T>(residualMobilityForces[15]);
-        res[0][13] = value<T>(residualMobilityForces[16]);
-        res[0][14] = value<T>(residualMobilityForces[17]);
-        res[0][15] = value<T>(residualMobilityForces[18]);
-        res[0][16] = value<T>(residualMobilityForces[19]);
-        res[0][17] = value<T>(residualMobilityForces[20]);
-        res[0][18] = value<T>(residualMobilityForces[12]);
-        res[0][19] = value<T>(residualMobilityForces[13]);
-        res[0][20] = value<T>(residualMobilityForces[14]);
-        for (int i = 0; i < nc; ++i) {
-            res[0][i + 21] = value<T>(GRF_r[1][i]); // GRF_r
-        }
-        for (int i = 0; i < nc; ++i) {
-            res[0][i + 21 + nc] = value<T>(GRF_l[1][i]); // GRF_l
-        }
-        for (int i = 0; i < nc; ++i) {
-            res[0][i + 21 + nc + nc] = value<T>(MOM_r[i]); // MOM_r
-        }
-        for (int i = 0; i < nc; ++i) {
-            res[0][i + 21 + nc + nc + nc] = value<T>(MOM_l[i]); // MOM_l
-        }
-        res[0][21+4*nc] = value<T>(calcn_or_r[0]);  /// calcn_or_r_x
-        res[0][22+4*nc] = value<T>(calcn_or_r[2]);  /// calcn_or_r_z
-        res[0][23+4*nc] = value<T>(calcn_or_l[0]);  /// calcn_or_l_x
-        res[0][24+4*nc] = value<T>(calcn_or_l[2]);  /// calcn_or_l_x
-        res[0][25+4*nc] = value<T>(tibia_or_r[0]);  /// tibia_or_r_x
-        res[0][26+4*nc] = value<T>(tibia_or_r[2]);  /// tibia_or_r_z
-        res[0][27+4*nc] = value<T>(tibia_or_l[0]);  /// tibia_or_l_x
-        res[0][28+4*nc] = value<T>(tibia_or_l[2]);  /// tibia_or_l_z
+    /// Residual forces
+    /// OpenSim and Simbody have different state orders so we need to adjust
+    auto indicesSimbodyInOS = getIndicesSimbodyInOS(*model);
+    for (int i = 0; i < NU; ++i) res[0][i] =
+            value<T>(residualMobilityForces[indicesSimbodyInOS[i]]);
+    for (int i = 0; i < nc; ++i) {
+        res[0][i + 21] = value<T>(GRF_r[1][i]); // GRF_r
     }
+    for (int i = 0; i < nc; ++i) {
+        res[0][i + 21 + nc] = value<T>(GRF_l[1][i]); // GRF_l
+    }
+    for (int i = 0; i < nc; ++i) {
+        res[0][i + 21 + nc + nc] = value<T>(GRT_r[i]); // GRT_r
+    }
+    for (int i = 0; i < nc; ++i) {
+        res[0][i + 21 + nc + nc + nc] = value<T>(GRT_l[i]); // GRT_l
+    }
+    res[0][21+4*nc] = value<T>(calcn_or_r[0]);  /// calcn_or_r_x
+    res[0][22+4*nc] = value<T>(calcn_or_r[2]);  /// calcn_or_r_z
+    res[0][23+4*nc] = value<T>(calcn_or_l[0]);  /// calcn_or_l_x
+    res[0][24+4*nc] = value<T>(calcn_or_l[2]);  /// calcn_or_l_x
+    res[0][25+4*nc] = value<T>(tibia_or_r[0]);  /// tibia_or_r_x
+    res[0][26+4*nc] = value<T>(tibia_or_r[2]);  /// tibia_or_r_z
+    res[0][27+4*nc] = value<T>(tibia_or_l[0]);  /// tibia_or_l_x
+    res[0][28+4*nc] = value<T>(tibia_or_l[2]);  /// tibia_or_l_z
+
     return 0;
+
 }
 
+/* In main(), the Recorder is used to save the expression graph of function F.
+This expression graph is saved as a MATLAB function named foo.m. From this
+function, a c-code can be generated via CasADi and then compiled as a dll. This
+dll is then imported in MATLAB as an external function. With this workflow,
+CasADi can use algorithmic differentiation to differentiate the function F.
+*/
 int main() {
 
     Recorder x[NX];
