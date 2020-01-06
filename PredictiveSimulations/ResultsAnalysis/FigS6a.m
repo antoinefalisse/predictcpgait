@@ -1,4 +1,4 @@
-% This script reproduces Fig 6
+% This script reproduces Fig S6(top)
 % Author: Antoine Falisse
 % Date: 1/6/2020
 
@@ -8,7 +8,7 @@ clc
 
 %% User settings
 % Selected trials
-ww = [1,5];
+ww = [5,15,24];
 subject = 'subject1';
 ocp_path = 'PredSimOCP';
 
@@ -26,10 +26,11 @@ addpath(genpath(pathVariousFunctions));
 Qs_r            = struct('m',[]);
 Acts_noSpas_r   = struct('m',[]);
 Acts_r          = struct('m',[]);
+Ts_r            = struct('m',[]);
 GRFs_r          = struct('m',[]);
-lMtilde_r       = struct('m',[]);
-Fpe_r           = struct('m',[]);
+COT             = struct('m',[]);
 Qs_toTrack      = struct('m',[]);
+Ts_toTrack      = struct('m',[]);
 corrCP          = struct('m',[]);
 corrTD          = struct('m',[]);
 corrCPAll       = struct('m',[]);
@@ -41,19 +42,19 @@ PredSimOCP_settings
 pathresults = [pathPredictiveSimulations,'/Results/',ocp_path];
 load([pathresults,'/ResultsPredSim.mat']);
 threshold = 30;
-NSyn = zeros(1,length(ww));
 for k = 1:length(ww) 
     N = settings(ww(k),3);   % number of mesh intervals
-    NSyn(k) = settings(ww(k),5);   % number of synergies per leg
+    NSyn = settings(ww(k),5);   % number of synergies per leg
     NPhases(ww(k)).m = 1;
     for mpi = 1:NPhases(ww(k)).m
         Qs_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Qs_r(mpi).mp;
+        Ts_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Ts_r(mpi).mp;
         GRFs_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).GRFs_r(mpi).mp;
         Qs_toTrack(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Qs_toTrack(mpi).mp;
+        Ts_toTrack(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Ts_toTrack(mpi).mp;
         Acts_noSpas_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Acts_noSpas_r(mpi).mp;
         Acts_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Acts_r(mpi).mp;
-        Fpe_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).Fpe_r(mpi).mp;
-        lMtilde_r(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).lMtilde_r(mpi).mp;
+        COT(ww(k)).m(mpi).mp = ResultsPredSim.(['Case_',num2str(ww(k))]).COT(mpi).mp;         
         % Extract stance/swing
         TO(mpi).r(k) = find(GRFs_r(ww(k)).m(mpi).mp(:,2)<threshold,1,'first');
         TO(mpi).l(k) = find(GRFs_r(ww(k)).m(mpi).mp(:,5)<threshold,1,'first');
@@ -76,7 +77,7 @@ color_all(3,:) = [72,133,237]/255;  % Blue
 pathExperimentalData = [pathPredictiveSimulations,'/ExperimentalData'];
 load([pathExperimentalData,'/ExperimentalData_r.mat'],'ExperimentalData');
 
-%% Plot joint kinematics
+%% Plot joint angles
 ref_Qs = ExperimentalData.Q;
 pos_Qs = 1;
 ylim_Qs = [-30,30;-30,30;-30,30;-2,2;0.5,1;-1,1;-10,50;-25,25;-25,25;-10,50;...
@@ -135,7 +136,7 @@ for i = 1:length(idx_Qs)
         corrCPAll(mpi).mp.r2.angles.all(count,i) = corrCP(ww(k)).m(mpi).mp.r2.angles.all(i);
         corrCPAll(mpi).mp.rmse.angles.all(count,i) = corrCP(ww(k)).m(mpi).mp.rmse.angles.all(i);
         count = count+1;
-        % Stance/swing
+        % Plot stance/swing
         temp_name = names_Qs{idx_Qs(i)};
         if strcmp(temp_name(end-1:end),'_l')
             plot([Qs_toTrack(ww(k)).m(mpi).mp(TO(mpi).l(k),1) ...
@@ -174,8 +175,83 @@ end
 corrCPAll.mp.rmse.angles.diff = diff(corrCPAll.mp.rmse.angles.all,1,1);
 corrCPAll.mp.rmse.angles.diff_per = ...
     corrCPAll.mp.rmse.angles.diff./corrCPAll.mp.rmse.angles.all(2:end,:)*100;
-l = legend(p,{'No tracking of TD kinematics','Tracking of TD kinematics','Reference TD child','Experimental CP child'});
+l = legend(p,{'No synergies','4 synergies','3 synergies','Reference TD child','Experimental CP child'});
 set(l,'Fontsize',20)
+
+%% Plot joint kinetics
+ref_Ts = ExperimentalData.Torques;
+ylim_Ts = [0,0;0,0;0,0;0,0;0,0;0,0;-50,50;-30,30;-20,20;-50,50;-30,30;-20,20;...
+    -60,20;-60,20;-50,50;-50,50;-20,20;-20,20;0,0;0,0];
+pos_Ts = 2;
+idx_Ts = [10:12,14,16,18];
+
+for mpi = 1:NPhases(ww(1)).m
+count=1;
+for i = 1:length(idx_Qs)
+    subplot(5,5,pos_Ts(i))
+    if find(idx_Ts==idx_Qs(i)) 
+    % Experimental data of the CP child.
+    idx_jref = strcmp(ref_Ts.(subject).colheaders,names_Qs{idx_Qs(i)});
+    meanPlusSTD = ref_Ts.(subject).mean(:,idx_jref) + 2*ref_Ts.(subject).std(:,idx_jref);
+    meanMinusSTD = ref_Ts.(subject).mean(:,idx_jref) - 2*ref_Ts.(subject).std(:,idx_jref);  
+    stepID = (size(Ts_r(ww(1)).m(mpi).mp,1)-1)/(size(meanPlusSTD,1)-1);
+    intervalID = 1:stepID:size(Ts_r(ww(1)).m(mpi).mp,1);
+    sampleID = 1:size(Ts_r(ww(1)).m(mpi).mp,1);
+    meanPlusSTD = interp1(intervalID,meanPlusSTD,sampleID);
+    meanMinusSTD = interp1(intervalID,meanMinusSTD,sampleID); 
+    hold on
+    yy = fill([x fliplr(x)],[meanPlusSTD fliplr(meanMinusSTD)],'-','linewidth',2);
+    yy.EdgeColor = [192,192,192]/255;
+    yy.FaceColor = [192,192,192]/255; 
+    end
+    % Experimental data of the TD child.
+    plot(Ts_toTrack(ww(1)).m(mpi).mp(:,1),Ts_toTrack(ww(1)).m(mpi).mp(:,idx_Qs(i)+1),...
+        'color','k','linewidth',line_linewidth);
+    for k = 1:length(ww)        
+        % Simulation results
+        plot(Ts_toTrack(ww(k)).m(mpi).mp(:,1),Ts_r(ww(k)).m(mpi).mp(:,idx_Qs(i)),...
+            'color',color_all(k,:),'linewidth',line_linewidth);
+        hold on;            
+        [corrTD(ww(k)).m(mpi).mp.r2.T.all(i),corrTD(ww(k)).m(mpi).mp.rmse.T.all(i)] = ...
+            rsquare(Ts_toTrack(ww(k)).m(mpi).mp(:,idx_Qs(i)+1),Ts_r(ww(k)).m(mpi).mp(:,idx_Qs(i)));  
+        corrTDAll(mpi).mp.r2.T.all(count,i) = corrTD(ww(k)).m(mpi).mp.r2.T.all(i);
+        corrTDAll(mpi).mp.rmse.T.all(count,i) = corrTD(ww(k)).m(mpi).mp.rmse.T.all(i);
+        count = count+1;
+        % Plot stance/swing
+        temp_name = names_Qs{idx_Qs(i)};
+        if strcmp(temp_name(end-1:end),'_l')
+            plot([Qs_toTrack(ww(k)).m(mpi).mp(TO(mpi).l(k),1) ...
+                Qs_toTrack(ww(k)).m(mpi).mp(TO(mpi).l(k),1)],...
+                [ylim_Ts(idx_Qs(i),1) ylim_Ts(idx_Qs(i),2)],...
+                'color',color_all(k,:),'linewidth',1);
+            plot([Qs_toTrack(ww(k)).m(mpi).mp(HS(mpi).l(k),1) ...
+                Qs_toTrack(ww(k)).m(mpi).mp(HS(mpi).l(k),1)],...
+                [ylim_Ts(idx_Qs(i),1) ylim_Ts(idx_Qs(i),2)],...
+                'color',color_all(k,:),'linestyle','--','linewidth',1);            
+        else
+            plot([Qs_toTrack(ww(k)).m(mpi).mp(TO(mpi).r(k),1) ...
+                Qs_toTrack(ww(k)).m(mpi).mp(TO(mpi).r(k),1)],...
+                [ylim_Ts(idx_Qs(i),1) ylim_Ts(idx_Qs(i),2)],...
+                'color',color_all(k,:),'linewidth',1);
+        end
+    end
+    count=1;         
+    % Plot settings 
+    set(gca,'Fontsize',label_fontsize);    
+    title(refNames_Qs{idx_Qs(i)},'Fontsize',label_fontsize);  
+    % Y-axis
+    ylim([ylim_Ts(idx_Qs(i),1) ylim_Ts(idx_Qs(i),2)]);
+    L = get(gca,'YLim');
+    set(gca,'YTick',linspace(L(1),L(2),NumTicks_Qs));       
+    if i == 1
+        ylabel('Torques (Nm)','Fontsize',label_fontsize);
+    end      
+    % X-axis
+    xlim([Qs_toTrack_deg(1,1),Qs_toTrack_deg(end,1)])
+    set(gca,'XTick',[]);
+    box off;
+end    
+end
 
 %% Plot muscle activations
 EMGref = ExperimentalData.EMG;
@@ -189,12 +265,12 @@ muscleNames = {'Glut max 1','Glut max 2','Glut max 3','Glut med 1',...
     'Gas lat','Soleus','Tib post','Tib ant','Ext dig',...
     'Ext hal','Flex dig','Flex hal','Per brev','Per long',...
     'Per tert'};
-muscleNames_tit = {'Glut max 1','Gluteus maximus','Glut max 3','Glut med 1',...
-    'Gluteus medius','Glut med 3','Glut min 1','Glut min 2',...
+muscleNames_tit = {'Glut max 1','Glut max 2','Glut max 3','Glut med 1',...
+    'Gluteus medius 2','Glut med 3','Glut min 1','Glut min 2',...
     'Glut min 3','Add long','Add brev','Add mag 1','Add mag 2',...
     'Add mag 3','Pectineus','Iliacus','Psoas','Quad fem',...
     'Gemellus','Piri','TFL','Gracilis','Semimembranosus','Semiten',...
-    'Biceps femoris lh','Biceps femoris sh','Sartorius','Rectus femoris',...
+    'Biceps femoris lh','Bi fem sh','Sartorius','Rectus femoris',...
     'Vastus medialis','Vas int','Vastus lateralis','Gastrocnemius medialis',...
     'Gastrocnemius lateralis','Soleus','Tib post','Tibialis anterior','Ext dig',...
     'Ext hal','Flex dig','Flex hal','Per brev','Per long',...
@@ -215,94 +291,98 @@ for i = 1:length(muscleNames)
         EMGcol(i) = 99;
     end
 end
-pos_As = [2,3];
-idx_As = [2,5]; 
+pos_As = [3,4];
+idx_As = [33,34]; 
 NMuscles = size(Acts_noSpas_r(ww(k)).m(mpi).mp,2);
 
 % Experimental data of the CP child.
-load([pathRepo,'/OpenSimModel/',subject,'/EMG/Gait/EMG_filt.mat'],'EMG_filt');  
+load([pathRepo,'/OpenSimModel/',subject,'/EMG/Gait/EMG_filt.mat'],'EMG_filt'); 
 for mpi = 1:NPhases(ww(1)).m
 count = 1;
 for i = 1:length(idx_As)
-    subplot(5,5,pos_As(i)) 
+    subplot(5,5,pos_As(i))    
+    if EMGcol(idx_As(i)) ~= 99
+        x = 1:(100-1)/(size(Acts_noSpas_r(ww(1)).m(mpi).mp,1)-1):100;
+        % Normalize EMG
+        a_peak_vec = zeros(1,length(ww));
+        for k = 1:length(ww)
+        a_peak_vec(k) = max(Acts_r(ww(k)).m(mpi).mp(:,idx_As(i)+NMuscles/2));
+        end
+        a_peak = max(a_peak_vec);    
+        emg_peak = zeros(1,size(EMGref.(subject).all,3));
+        for j = 1:size(EMGref.(subject).all,3)
+            emg_peak(j) = nanmax(EMGref.(subject).all(:,strcmp(EMGref.(subject).colheaders,['R',EMGchannel{idx_As(i)}]),j),[],1);
+        end
+        norm_f = a_peak./emg_peak;
+        tempp(:,:) = EMGref.(subject).all(:,strcmp(EMGref.(subject).colheaders,['R',EMGchannel{idx_As(i)}]),:);
+        emg1processednorm.all = tempp.*repmat(norm_f,size(tempp,1),1);   
+        emg1processednorm.mean = mean(emg1processednorm.all,2);
+        emg1processednorm.std = std(emg1processednorm.all,[],2); 
+        meanPlusSTD = emg1processednorm.mean + 2*emg1processednorm.std;
+        meanMinusSTD = emg1processednorm.mean - 2*emg1processednorm.std; 
+        intervalInterp = 1:(size(tempp,1)-1)/(size(Acts_noSpas_r(ww(1)).m(mpi).mp,1)-1):size(tempp,1);
+        meanPlusSTD = interp1(1:size(tempp,1),meanPlusSTD,intervalInterp);
+        meanMinusSTD = interp1(1:size(tempp,1),meanMinusSTD,intervalInterp); 
+        meanInterp = interp1(1:size(tempp,1),emg1processednorm.mean,intervalInterp); 
+        yy = fill([x fliplr(x)],[meanPlusSTD fliplr(meanMinusSTD)],'-','linewidth',2);
+        yy.EdgeColor = [192,192,192]/255;
+        yy.FaceColor = [192,192,192]/255;
+        hold on
+    end
     p = gobjects(1,length(ww));   
     % Simulation results
     for k = 1:length(ww)
         x = 1:(100-1)/(size(Acts_noSpas_r(ww(k)).m(mpi).mp,1)-1):100;
-        p(k) = plot(x,Acts_noSpas_r(ww(k)).m(mpi).mp(:,idx_As(i)+NMuscles/2).^10,'color',...
+        p(k) = plot(x,Acts_noSpas_r(ww(k)).m(mpi).mp(:,idx_As(i)+NMuscles/2),'color',...
             color_all(k,:),'linewidth',line_linewidth);
         hold on
         count = count+1;
-        plot([x(TO(mpi).r(k)) x(TO(mpi).r(k))],[0 4e-4],'color',color_all(k,:),'linewidth',1);
+        plot([x(TO(mpi).r(k)) x(TO(mpi).r(k))],[0 1],'color',color_all(k,:),'linewidth',1);
     end   
     count = 1;
     % Plot settings
     set(gca,'Fontsize',label_fontsize)
     title(muscleNames_tit{idx_As(i)},'Fontsize',label_fontsize);    
     % X-axis
-    L = get(gca,'XLim');
-        set(gca,'XTick',[]);
+    set(gca,'XTick',[]);
     % Y-axis
+    ylim([0,1]);
     NumTicks = 2;
     LY = get(gca,'YLim');
     set(gca,'YTick',linspace(LY(1),LY(2),NumTicks))
     if i == 1
-        ylabel('Activations10 (-)','Fontsize',label_fontsize);
+        ylabel('Activations (-)','Fontsize',label_fontsize);
     end  
     box off;
 end
 end
 
-%% Plot passive forces
-Fpe_opt_adj = struct('m',[]);
-lMtilde_opt_adj = struct('m',[]);
-NMuscle_noFLV_r = struct('m',[]);
-musi_noFLV_r  = struct('m',[]);
-musi_noFLV = struct('m',[]);
-musi_FLV = struct('m',[]);
-muscleNames_noFLV(ww(k)).m = {};
-pathOpenSimModel = [pathRepo,'/OpenSimModel/',subject,'/'];
-pathParameterEstimation = [pathOpenSimModel,'ParameterEstimation/'];   
-load([pathParameterEstimation,'MTParameters_personalized.mat']);  
+%% Plot metabolic cost of transport (COT)
+COT_order = zeros(1,length(ww));
 for k = 1:length(ww)
-    NMuscle_noFLV_r(ww(k)).m  = length(muscleNames_noFLV(ww(k)).m);
-    musi_noFLV_r(ww(k)).m = zeros(1,NMuscle_noFLV_r(ww(k)).m);
-    for i = 1:NMuscle_noFLV_r(ww(k)).m
-        musi_noFLV_r(ww(k)).m(i) = find(strcmp(muscleNames,muscleNames_noFLV(ww(k)).m{i}));
-    end
-    musi_noFLV(ww(k)).m = [musi_noFLV_r(ww(k)).m,musi_noFLV_r(ww(k)).m+NMuscles/2]; 
-    musi = 1:NMuscles;
-    musi_FLV(ww(k)).m = musi;
-    musi_FLV(ww(k)).m(musi_noFLV(ww(k)).m) = [];    
-    for mpi = 1:NPhases(ww(k)).m    
-        Fpe_opt_adj(ww(k)).m(mpi).mp = zeros(size(Fpe_r(ww(k)).m(mpi).mp,1),NMuscles);
-        Fpe_opt_adj(ww(k)).m(mpi).mp(:,musi_FLV(ww(k)).m) = Fpe_r(ww(k)).m(mpi).mp;        
-        lMtilde_opt_adj(ww(k)).m(mpi).mp = zeros(size(lMtilde_r(ww(k)).m(mpi).mp,1),NMuscles);
-        lMtilde_opt_adj(ww(k)).m(mpi).mp(:,musi_FLV(ww(k)).m) = lMtilde_r(ww(k)).m(mpi).mp;
-    end    
+    COT_order(k) = COT(ww(k)).m(mpi).mp;
 end
-for mpi = 1:NPhases(ww(k)).m
-pos_pF = [4,5];
-idx_pF = [17,26]; 
-for i = 1:length(idx_pF)
-    subplot(5,5,pos_pF(i))    
-    for k = 1:length(ww)
-        x = 1:(100-1)/(size(Acts_noSpas_r(ww(k)).m(mpi).mp,1)-1):100;            
-        plot(x,Fpe_opt_adj(ww(k)).m(mpi).mp(:,idx_pF(i)+NMuscles/2)./MTParameters(1,idx_pF(i)+NMuscles/2),...
-            'color',color_all(k,:),'linewidth',line_linewidth);
-        hold on;
-        plot([x(TO(mpi).r(k)) x(TO(mpi).r(k))],[0 1],'color',color_all(k,:),'linewidth',1);
-    end
-    set(gca,'Fontsize',label_fontsize)
-    title(muscleNames_tit{idx_pF(i)},'Fontsize',label_fontsize);
-    set(gca,'XTick',[]);
-    ylim([0,0.5]);
-    NumTicks = 2;
-    LY = get(gca,'YLim');
-    set(gca,'YTick',linspace(LY(1),LY(2),NumTicks))
-    if i == 1
-        ylabel('Passive forces (-)','Fontsize',label_fontsize);
-    end  
-    box off;
+COT_order_mean = COT_order;
+COT_order_mean = [COT_order_mean;zeros(1,length(COT_order_mean))];
+COT_order_std = zeros(2,length(COT_order_mean));
+% Plot
+ylim_COT = [0,5];
+xlim_COT = [0.4 1.6];
+NumTicks_COT = 2;
+subplot(5,5,5)
+h_COT = barwitherr(COT_order_std,COT_order_mean);
+% Plot settings 
+set(gca,'Fontsize',label_fontsize);
+title('COT','Fontsize',label_fontsize);
+% X-axis
+xlim([xlim_COT(1,1) xlim_COT(1,2)]);
+set(gca,'XTick',[]);
+% Y-axis
+ylim([ylim_COT(1,1) ylim_COT(1,2)]);
+L = get(gca,'YLim');
+set(gca,'YTick',linspace(L(1),L(2),NumTicks_COT));
+ylabel('(J kg-1 m-1)','Fontsize',label_fontsize);
+for k = 1:length(ww)
+    set(h_COT(k),'FaceColor',color_all(k,:));
 end
-end
+box off;

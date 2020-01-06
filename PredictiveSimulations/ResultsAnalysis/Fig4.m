@@ -196,6 +196,8 @@ end
 corrCPAll.mp.rmse.angles.diff = diff(corrCPAll.mp.rmse.angles.all,1,1);
 corrCPAll.mp.rmse.angles.diff_per = ...
     corrCPAll.mp.rmse.angles.diff./corrCPAll.mp.rmse.angles.all(2:end,:)*100;
+l = legend(p,{'No synergies','4 synergies','3 synergies','Reference TD child','Experimental CP child'});
+set(l,'Fontsize',20)
 
 %% Plot joint torques
 ref_Ts = ExperimentalData.Torques;
