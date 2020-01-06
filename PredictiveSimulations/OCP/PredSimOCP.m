@@ -26,7 +26,7 @@ close all;
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
 % num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-num_set = [0,1,1,0,0,0,0]; % This configuration analyzes the results
+num_set = [0,1,1,1,0,1,1]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
@@ -218,9 +218,8 @@ elseif paramsi == 2 % personalized parameters
     load([pathParameterEstimation,'MTParameters_personalized.mat']);  
 end
 % Indices of the muscles actuating the different joints for later use
-pathpolynomial = [pathOpenSimModel,'Polynomials/'];
-addpath(genpath(pathpolynomial));
-tl = load([pathpolynomial,'muscle_spanning_joint_INFO_',subject,'_r.mat']);
+tl = load([pathOpenSimModel,'Polynomials/muscle_spanning_joint_INFO_',...
+    subject,'_r.mat']);
 [~,mai] = getMomentArmIndices(muscleNames,tl.muscle_spanning_joint_INFO_r);
 % The original code was set up such that the force-length-velocity (FLV)
 % relationships of some muscles could be ignored. This is not used in this code
@@ -348,10 +347,12 @@ end
 pathCasADiFunctions = [pathPredictiveSimulations,'/CasADiFunctions'];
 addpath(genpath(pathCasADiFunctions));
 % We load some variables for the polynomial approximations
-load([pathpolynomial,'/muscle_spanning_joint_INFO_',subject,'_r.mat']);
-load([pathpolynomial,'/muscle_spanning_joint_INFO_',subject,'_l.mat']);
-load([pathpolynomial,'/MuscleInfo_',subject,'_r.mat']);
-load([pathpolynomial,'/MuscleInfo_',subject,'_l.mat']);
+load([pathOpenSimModel,'Polynomials/muscle_spanning_joint_INFO_',...
+    subject,'_r.mat']);
+load([pathOpenSimModel,'Polynomials/muscle_spanning_joint_INFO_',...
+    subject,'_l.mat']);
+load([pathOpenSimModel,'Polynomials/MuscleInfo_',subject,'_r.mat']);
+load([pathOpenSimModel,'Polynomials/MuscleInfo_',subject,'_l.mat']);
 % For the polynomials, we want all independent muscles. So we do not need 
 % the muscles from both legs, since we assume bilateral symmetry, but want
 % all muscles from the trunk (indices 47:49).
@@ -1323,34 +1324,36 @@ if analyseResults
     FTtilde_opt_ext = struct('mp',[]);
     q_opt_ext = struct('mp',[]);
     q_dot_opt_ext = struct('mp',[]);
-    syn_a_opt_l = struct('mp',[]);
-    syn_a_opt_r = struct('mp',[]);
     a_Ff_opt = struct('mp',[]);
     a_dFf_opt = struct('mp',[]);
+    tempi = Nw_acc+NParameters;
     for mpi = 1:NPhases 
         % Mesh points
-        % Muscle activations and muscle-tendon forces
+        % Muscle activations
         a_opt(mpi).mp = zeros(N+1,NMact);
         for i = 1:NMact
-            a_opt(mpi).mp(:,i) = w_opt(Nw_acc+NParameters+i:Nwl:Nw_acc+Nw);
+            a_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end
+        tempi = tempi + NMact;
+        % Muscle-tendon forces
         FTtilde_opt(mpi).mp = zeros(N+1,NMuscles_FLV);
         for i = 1:NMuscles_FLV
-            FTtilde_opt(mpi).mp(:,i) = w_opt(Nw_acc+NParameters+NMact+i:Nwl:Nw_acc+Nw);
-        end        
+            FTtilde_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
+        end    
+        tempi = tempi + NMuscles_FLV;
         % Qs and Qdots
         q_opt(mpi).mp = zeros(N+1,nq.res);
         qdot_opt(mpi).mp = zeros(N+1,nq.res);
         count = 0;
         for i = 1:2:2*nq.res
             count = count +1;
-            q_opt(mpi).mp(:,count) = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i:Nwl:Nw_acc+Nw);
-            qdot_opt(mpi).mp(:,count) = w_opt(Nw_acc+NParameters+NMact+NMuscles_FLV+i+1:Nwl:Nw_acc+Nw);
+            q_opt(mpi).mp(:,count) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
+            qdot_opt(mpi).mp(:,count) = w_opt(tempi+i+1:Nwl:Nw_acc+Nw);
         end
+        tempi = tempi + 2*nq.res;
         qqdot_opt(mpi).mp = zeros(N+1,2*nq.res); 
         qqdot_opt(mpi).mp(:,1:2:end) = q_opt(mpi).mp;
         qqdot_opt(mpi).mp(:,2:2:end) = qdot_opt(mpi).mp;
-        tempi = Nw_acc+NParameters+NMact+NMuscles_FLV+2*nq.res;
         if spasi == 1
             % Muscle activations from muscle-tendon force feedback and 
             % muscle-tendon force rate feedback
@@ -1358,7 +1361,8 @@ if analyseResults
             a_dFf_opt(mpi).mp = zeros(N+1,NMuscles_Spas);
             for i = 1:NMuscles_Spas
                 a_Ff_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
-                a_dFf_opt(mpi).mp(:,i) = w_opt(tempi+NMuscles_Spas+i:Nwl:Nw_acc+Nw);
+                a_dFf_opt(mpi).mp(:,i) = ...
+                    w_opt(tempi+NMuscles_Spas+i:Nwl:Nw_acc+Nw);
             end 
             tempi = tempi + 2*NMuscles_Spas;            
         end
@@ -1368,12 +1372,13 @@ if analyseResults
             a_b_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end     
         tempi = tempi + nq.res_trunk; 
-        % Time derivative of muscle activations and muscle-tendon forces
+        % Time derivative of muscle activations
         vA_opt(mpi).mp = zeros(N,NMact);
         for i = 1:NMact
             vA_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
         end
         tempi = tempi + NMact; 
+        % Time derivative of muscle-tendon forces
         dFTtilde_opt(mpi).mp = zeros(N,NMuscles_FLV);
         for i = 1:NMuscles_FLV
             dFTtilde_opt(mpi).mp(:,i) = w_opt(tempi+i:Nwl:Nw_acc+Nw);
@@ -1395,16 +1400,22 @@ if analyseResults
         a_opt_ext(mpi).mp=zeros(N*(d+1)+1,NMact);
         a_opt_ext(mpi).mp(1:(d+1):end,:)= a_opt(mpi).mp;
         for nmusi=1:NMact
-            a_opt_ext(mpi).mp(2:(d+1):end,nmusi) = w_opt(Nw_acc+Nwm+nmusi:Nwl:Nw_acc+Nw);
-            a_opt_ext(mpi).mp(3:(d+1):end,nmusi) = w_opt(Nw_acc+Nwm+NMact+nmusi:Nwl:Nw_acc+Nw);
-            a_opt_ext(mpi).mp(4:(d+1):end,nmusi) = w_opt(Nw_acc+Nwm+NMact+NMact+nmusi:Nwl:Nw_acc+Nw);
+            a_opt_ext(mpi).mp(2:(d+1):end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+nmusi:Nwl:Nw_acc+Nw);
+            a_opt_ext(mpi).mp(3:(d+1):end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+NMact+nmusi:Nwl:Nw_acc+Nw);
+            a_opt_ext(mpi).mp(4:(d+1):end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+NMact+NMact+nmusi:Nwl:Nw_acc+Nw);
         end
         % Muscle activations at collocation points only
         a_opt_ext_col(mpi).mp = zeros(N*d,NMact); 
         for nmusi=1:NMact
-            a_opt_ext_col(mpi).mp(1:d:end,nmusi) = w_opt(Nw_acc+Nwm+nmusi:Nwl:Nw_acc+Nw);
-            a_opt_ext_col(mpi).mp(2:d:end,nmusi) = w_opt(Nw_acc+Nwm+NMact+nmusi:Nwl:Nw_acc+Nw);
-            a_opt_ext_col(mpi).mp(3:d:end,nmusi) = w_opt(Nw_acc+Nwm+NMact+NMact+nmusi:Nwl:Nw_acc+Nw);   
+            a_opt_ext_col(mpi).mp(1:d:end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+nmusi:Nwl:Nw_acc+Nw);
+            a_opt_ext_col(mpi).mp(2:d:end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+NMact+nmusi:Nwl:Nw_acc+Nw);
+            a_opt_ext_col(mpi).mp(3:d:end,nmusi) = ...
+                w_opt(Nw_acc+Nwm+NMact+NMact+nmusi:Nwl:Nw_acc+Nw);   
         end 
         % Muscle-tendon forces
         FTtilde_opt_ext(mpi).mp=zeros(N*(d+1)+1,NMuscles_FLV);
@@ -1415,7 +1426,8 @@ if analyseResults
             FTtilde_opt_ext(mpi).mp(3:(d+1):end,nmusi) = ...
                 w_opt(Nw_acc+Nwm+d*NMact+NMuscles_FLV+nmusi:Nwl:Nw_acc+Nw);
             FTtilde_opt_ext(mpi).mp(4:(d+1):end,nmusi) = ...
-                w_opt(Nw_acc+Nwm+d*NMact+NMuscles_FLV+NMuscles_FLV+nmusi:Nwl:Nw_acc+Nw);
+                w_opt(Nw_acc+Nwm+d*NMact+NMuscles_FLV+NMuscles_FLV+nmusi:Nwl:...
+                Nw_acc+Nw);
         end
         % Qs and Qdots
         q_opt_ext(mpi).mp=zeros(N*(d+1)+1,nq.res);
@@ -1425,18 +1437,27 @@ if analyseResults
         nqi_col = 1:2:2*nq.res;
         for nqi=1:nq.res
             nqi_q = nqi_col(nqi);
-            q_opt_ext(mpi).mp(2:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+nqi_q:Nwl:Nw_acc+Nw);   
-            q_opt_ext(mpi).mp(3:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+nqi_q:Nwl:Nw_acc+Nw);  
-            q_opt_ext(mpi).mp(4:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+2*nq.res+nqi_q:Nwl:Nw_acc+Nw);  
-            q_dot_opt_ext(mpi).mp(2:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+nqi_q+1:Nwl:Nw_acc+Nw);   
-            q_dot_opt_ext(mpi).mp(3:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+nqi_q+1:Nwl:Nw_acc+Nw);  
-            q_dot_opt_ext(mpi).mp(4:(d+1):end,nqi) = w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+2*nq.res+nqi_q+1:Nwl:Nw_acc+Nw);
+            q_opt_ext(mpi).mp(2:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+nqi_q:Nwl:Nw_acc+Nw);   
+            q_opt_ext(mpi).mp(3:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+nqi_q:Nwl:...
+                Nw_acc+Nw);  
+            q_opt_ext(mpi).mp(4:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+2*nq.res+...
+                nqi_q:Nwl:Nw_acc+Nw);  
+            q_dot_opt_ext(mpi).mp(2:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+nqi_q+1:Nwl:Nw_acc+Nw);   
+            q_dot_opt_ext(mpi).mp(3:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+nqi_q+1:Nwl:...
+                Nw_acc+Nw);  
+            q_dot_opt_ext(mpi).mp(4:(d+1):end,nqi) = ...
+                w_opt(Nw_acc+Nwm+d*NMact+d*NMuscles_FLV+2*nq.res+2*nq.res+...
+                nqi_q+1:Nwl:Nw_acc+Nw);
         end
         Nw_acc = Nw_acc + Nw - NParameters;
     end
     
     %% Unscale results
-    % Parameters
     q_opt_unsc = struct('mp',[]);
     q_opt_unsc_all = struct('mp',[]);
     qdot_opt_unsc = struct('mp',[]);
@@ -1456,61 +1477,89 @@ if analyseResults
     for mpi = 1:NPhases
         % States at mesh points
         % Qs (1:N-1)
-        q_opt_unsc(mpi).mp.rad = q_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.Qs,size(q_opt(mpi).mp(1:end-1,:),1),1); 
+        q_opt_unsc(mpi).mp.rad = q_opt(mpi).mp(1:end-1,:)...
+            .*repmat(scaling(mpi).mp.Qs,size(q_opt(mpi).mp(1:end-1,:),1),1); 
         % Convert in degrees
         q_opt_unsc(mpi).mp.deg = q_opt_unsc(mpi).mp.rad;
-        q_opt_unsc(mpi).mp.deg(:,[1:3,7:end]) = q_opt_unsc(mpi).mp.deg(:,[1:3,7:end]).*180/pi;
+        q_opt_unsc(mpi).mp.deg(:,jointi.res_roti) = ...
+            q_opt_unsc(mpi).mp.deg(:,jointi.res_roti).*180/pi;
         % Qs (1:N)
-        q_opt_unsc_all(mpi).mp.rad = q_opt(mpi).mp(1:end,:).*repmat(scaling(mpi).mp.Qs,size(q_opt(mpi).mp(1:end,:),1),1); 
+        q_opt_unsc_all(mpi).mp.rad = q_opt(mpi).mp(1:end,:)...
+            .*repmat(scaling(mpi).mp.Qs,size(q_opt(mpi).mp(1:end,:),1),1); 
         % Convert in degrees
         q_opt_unsc_all(mpi).mp.deg = q_opt_unsc_all(mpi).mp.rad;
-        q_opt_unsc_all(mpi).mp.deg(:,[1:3,7:end]) = q_opt_unsc_all(mpi).mp.deg(:,[1:3,7:end]).*180/pi;
+        q_opt_unsc_all(mpi).mp.deg(:,jointi.res_roti) = ...
+            q_opt_unsc_all(mpi).mp.deg(:,jointi.res_roti).*180/pi;
         % Qdots (1:N-1)
-        qdot_opt_unsc(mpi).mp.rad = qdot_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.Qdots,size(qdot_opt(mpi).mp(1:end-1,:),1),1);
+        qdot_opt_unsc(mpi).mp.rad = qdot_opt(mpi).mp(1:end-1,:).*repmat(...
+            scaling(mpi).mp.Qdots,size(qdot_opt(mpi).mp(1:end-1,:),1),1);
         % Convert in degrees
         qdot_opt_unsc(mpi).mp.deg = qdot_opt_unsc(mpi).mp.rad;
-        qdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]) = qdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]).*180/pi;
+        qdot_opt_unsc(mpi).mp.deg(:,jointi.res_roti) = ...
+            qdot_opt_unsc(mpi).mp.deg(:,jointi.res_roti).*180/pi;
         % Qdots (1:N)
-        qdot_opt_unsc_all(mpi).mp.rad = qdot_opt(mpi).mp(1:end,:).*repmat(scaling(mpi).mp.Qdots,size(qdot_opt(mpi).mp(1:end,:),1),1); 
-        % Muscle activations
-        a_syn_opt(mpi).mp = a_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.a,size(a_opt(mpi).mp(1:end-1,:),1),size(a_opt(mpi).mp,2));
+        qdot_opt_unsc_all(mpi).mp.rad = qdot_opt(mpi).mp(1:end,:).*repmat(...
+            scaling(mpi).mp.Qdots,size(qdot_opt(mpi).mp(1:end,:),1),1); 
+        % Muscle /synergy activations
+        a_syn_opt(mpi).mp = a_opt(mpi).mp(1:end-1,:)...
+            .*repmat(scaling(mpi).mp.a,size(a_opt(mpi).mp(1:end-1,:),1),...
+            size(a_opt(mpi).mp,2));
         % Muscle-tendon forces
-        FTtilde_opt_unsc(mpi).mp = FTtilde_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.FTtilde,size(FTtilde_opt(mpi).mp(1:end-1,:),1),1);
+        FTtilde_opt_unsc(mpi).mp = FTtilde_opt(mpi).mp(1:end-1,:)...
+            .*repmat(scaling(mpi).mp.FTtilde,...
+            size(FTtilde_opt(mpi).mp(1:end-1,:),1),1);
+        % Trunk activations
+        a_b_opt_unsc(mpi).mp = a_b_opt(mpi).mp(1:end-1,:)...
+            .*repmat(scaling(mpi).mp.a_b,size(a_b_opt(mpi).mp(1:end-1,:),1),...
+            size(a_b_opt(mpi).mp,2));
         % Controls at mesh points
         % Time derivative of Qdots
-        qdotdot_opt_unsc(mpi).mp.rad = qdotdot_opt(mpi).mp.*repmat(scaling(mpi).mp.Qdotdots,size(qdotdot_opt(mpi).mp,1),1);
-        % Trunk activations
-        a_b_opt_unsc(mpi).mp = a_b_opt(mpi).mp(1:end-1,:).*repmat(scaling(mpi).mp.a_b,size(a_b_opt(mpi).mp(1:end-1,:),1),size(a_b_opt(mpi).mp,2));
-        e_b_opt_unsc(mpi).mp = e_b_opt(mpi).mp.*repmat(scaling(mpi).mp.e_b,size(e_b_opt(mpi).mp,1),size(e_b_opt(mpi).mp,2));
+        qdotdot_opt_unsc(mpi).mp.rad = qdotdot_opt(mpi).mp...
+            .*repmat(scaling(mpi).mp.Qdotdots,size(qdotdot_opt(mpi).mp,1),1);        
         % Convert in degrees
         qdotdot_opt_unsc(mpi).mp.deg = qdotdot_opt_unsc(mpi).mp.rad;
-        qdotdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]) = qdotdot_opt_unsc(mpi).mp.deg(:,[1:3,7:end]).*180/pi;
-        % Time derivative of muscle activations (states)
-        vA_opt_unsc(mpi).mp = vA_opt(mpi).mp.*repmat(scaling(mpi).mp.vA,size(vA_opt(mpi).mp,1),size(vA_opt(mpi).mp,2));
-        % Get muscle excitations from time derivative of muscle activations
-        % Time derivative of muscle-tendon forces
-        dFTtilde_opt_unsc(mpi).mp = dFTtilde_opt(mpi).mp.*repmat(scaling(mpi).mp.dFTtilde,size(dFTtilde_opt(mpi).mp,1),size(dFTtilde_opt(mpi).mp,2));
-        % Reconstruct synergies
-        if NSyn == 99
+        qdotdot_opt_unsc(mpi).mp.deg(:,jointi.res_roti) = ...
+            qdotdot_opt_unsc(mpi).mp.deg(:,jointi.res_roti).*180/pi;
+        % Trunk excitations
+        e_b_opt_unsc(mpi).mp = e_b_opt(mpi).mp.*repmat(scaling(mpi).mp.e_b,...
+            size(e_b_opt(mpi).mp,1),size(e_b_opt(mpi).mp,2));
+        % Time derivative of muscle /synergy activations (states)
+        vA_opt_unsc(mpi).mp = vA_opt(mpi).mp.*repmat(scaling(mpi).mp.vA,...
+            size(vA_opt(mpi).mp,1),size(vA_opt(mpi).mp,2));
+        % Time derivative of muscle-tendon forces (states)
+        dFTtilde_opt_unsc(mpi).mp = dFTtilde_opt(mpi).mp...
+            .*repmat(scaling(mpi).mp.dFTtilde,size(dFTtilde_opt(mpi).mp,1),...
+            size(dFTtilde_opt(mpi).mp,2));
+        
+        % Reconstruct muscle activations from synergies
+        if NSyn == 99 % no synergies
             a_opt_unsc(mpi).mp = a_syn_opt(mpi).mp;
         else
             a_syn_opt_l = zeros(N,NMuscles/2);
             a_syn_opt_r = zeros(N,NMuscles/2);
             for n = 1:N
-                a_syn_opt_l(n,:) = full(f_SynergyProduct(syn_wl_opt,a_syn_opt(mpi).mp(n,1:NSyn)))';
-                a_syn_opt_r(n,:) = full(f_SynergyProduct(syn_wr_opt,a_syn_opt(mpi).mp(n,NSyn+1:2*NSyn)))';  
+                a_syn_opt_l(n,:) = full(f_SynergyProduct(syn_wl_opt,...
+                    a_syn_opt(mpi).mp(n,1:NSyn)))';
+                a_syn_opt_r(n,:) = full(f_SynergyProduct(syn_wr_opt,...
+                    a_syn_opt(mpi).mp(n,NSyn+1:2*NSyn)))';  
             end
             a_opt_unsc(mpi).mp = [a_syn_opt_l,a_syn_opt_r];   
-        end
-        e_opt_unsc(mpi).mp = computeExcitationRaasch(a_syn_opt(mpi).mp,vA_opt_unsc(mpi).mp,ones(1,NMact)*tdeact,ones(1,NMact)*tact);
-        % Combination of supra-spinal inputs and reflex feedback
+        end        
+        
+        % Muscle / synergy excitations
+        e_opt_unsc(mpi).mp = computeExcitationRaasch(a_syn_opt(mpi).mp,...
+            vA_opt_unsc(mpi).mp,ones(1,NMact)*tdeact,ones(1,NMact)*tact);
+        
+        % Combination of feedback and feedforward activations 
         a_tot_opt(mpi).mp = a_opt_unsc(mpi).mp;         
         if spasi == 1
-            % Muscle activations from muscle-tendon force feedback and time derivative
-            % of muscle-tendon force feedback
+            % Muscle activations from muscle-tendon force feedback and
+            % of muscle-tendon force rate feedback
             a_Ff_opt_unsc(mpi).mp = a_Ff_opt(mpi).mp(1:end-1,:);
             a_dFf_opt_unsc(mpi).mp = a_dFf_opt(mpi).mp(1:end-1,:);        
-            a_tot_opt(mpi).mp(:,musi_Spas) = a_tot_opt(mpi).mp(:,musi_Spas) + a_Ff_opt_unsc(mpi).mp + a_dFf_opt_unsc(mpi).mp; 
+            a_tot_opt(mpi).mp(:,musi_Spas) = ...
+                a_tot_opt(mpi).mp(:,musi_Spas) + a_Ff_opt_unsc(mpi).mp + ...
+                a_dFf_opt_unsc(mpi).mp; 
         end
     end
     
@@ -1541,20 +1590,22 @@ if analyseResults
     GRM_opt_unsc = struct('mp',[]);
     StrideLength_opt = struct('mp',[]);
     StepWidth_opt_mean = struct('mp',[]);
+    StepWidth_opt_std = struct('mp',[]);
     for mpi = 1:NPhases
-        Xk_Qs_Qdots_opt(mpi).mp             = zeros(N,2*size(q_opt_unsc(mpi).mp.rad,2));
-        Xk_Qs_Qdots_opt(mpi).mp(:,1:2:end)  = q_opt_unsc(mpi).mp.rad;
-        Xk_Qs_Qdots_opt(mpi).mp(:,2:2:end)  = qdot_opt_unsc(mpi).mp.rad;
-        Xk_Qdotdots_opt(mpi).mp             = qdotdot_opt_unsc(mpi).mp.rad;  
+        Xk_Qs_Qdots_opt(mpi).mp = zeros(N,2*size(q_opt_unsc(mpi).mp.rad,2));
+        Xk_Qs_Qdots_opt(mpi).mp(:,1:2:end) = q_opt_unsc(mpi).mp.rad;
+        Xk_Qs_Qdots_opt(mpi).mp(:,2:2:end) = qdot_opt_unsc(mpi).mp.rad;
+        Xk_Qdotdots_opt(mpi).mp = qdotdot_opt_unsc(mpi).mp.rad;  
         for i = 1:N
-            out2_res = F([Xk_Qs_Qdots_opt(mpi).mp(i,:)';Xk_Qdotdots_opt(mpi).mp(i,:)']);        
+            out2_res = F([Xk_Qs_Qdots_opt(mpi).mp(i,:)';...
+                Xk_Qdotdots_opt(mpi).mp(i,:)']);        
             out_res_opt(mpi).mp(i,:) = full(out2_res);  
         end
         % Optimal joint torques, ground reaction forces and moments
-        Tauk_out(mpi).mp        = out_res_opt(mpi).mp(:,jointi.resi);
-        GRF_opt_unsc(mpi).mp    = out_res_opt(mpi).mp(:,GRFi.all);
-        GRM_opt_unsc(mpi).mp    = out_res_opt(mpi).mp(:,GRMi.all);
-        % Stride length (transversal plane)        
+        Tauk_out(mpi).mp = out_res_opt(mpi).mp(:,jointi.resi);
+        GRF_opt_unsc(mpi).mp = out_res_opt(mpi).mp(:,GRFi.all);
+        GRM_opt_unsc(mpi).mp = out_res_opt(mpi).mp(:,GRMi.all);
+        % Stride length       
         dist = sqrt(sumsqr(out_res_opt(mpi).mp(end,calcOr.r)-...
             out_res_opt(mpi).mp(1,calcOr.r)));
         StrideLength_opt(mpi).mp = full(dist);
@@ -1562,9 +1613,10 @@ if analyseResults
         StepWidth_opt = full(abs(out_res_opt(mpi).mp(:,calcOr.r(2)) - ...
             out_res_opt(mpi).mp(:,calcOr.l(2))));
         StepWidth_opt_mean(mpi).mp = mean(StepWidth_opt);
-        StepWidth_opt_std = std(StepWidth_opt);
-        % assertArmTmax should be 0
-        assertTrunkTmax = max(max(abs(out_res_opt(mpi).mp(:,jointi.res_trunki)-...
+        StepWidth_opt_std(mpi).mp = std(StepWidth_opt);
+        % assertTrunkTmax should be < 1*10^(-tol_ipopt)
+        assertTrunkTmax = ...
+            max(max(abs(out_res_opt(mpi).mp(:,jointi.res_trunki)-...
             (a_b_opt_unsc(mpi).mp)*scaling(mpi).mp.TrunkTau)));  
         if assertTrunkTmax > 1*10^(-tol_ipopt)
             disp('Issue when reconstructing residual forces')
@@ -1572,68 +1624,80 @@ if analyseResults
     end
        
     %% Passive joint torques at optimal solution
-    Tau_pass_opt_all = struct('mp',[]);
-    Tau_pass_opt = struct('mp',[]);
+    TPass_opt_all = struct('mp',[]);
+    TPass_opt = struct('mp',[]);
     for mpi = 1:NPhases
-        Tau_pass_opt_all(mpi).mp = zeros(N,nq.res_bgp);
+        TPass_opt_all(mpi).mp = zeros(N,nq.res_bgp);
         for i = 1:N    
-            Tau_pass_opt(mpi).mp.hip.flex.l = f_PassiveTorques(k_pass.hip.flex,...
-                theta.pass.hip.flex,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.l*2-1),...
+            TPass_opt(mpi).mp.hip.flex.l = f_PassiveTorques(...
+                k_pass.hip.flex,theta.pass.hip.flex,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.l*2));
-            Tau_pass_opt(mpi).mp.hip.flex.r = f_PassiveTorques(k_pass.hip.flex,...
-                theta.pass.hip.flex,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.r*2-1),...
+            TPass_opt(mpi).mp.hip.flex.r = f_PassiveTorques(...
+                k_pass.hip.flex,theta.pass.hip.flex,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_flex.r*2));
-            Tau_pass_opt(mpi).mp.hip.add.l = f_PassiveTorques(k_pass.hip.add,...
-                theta.pass.hip.add,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.l*2-1),...
+            TPass_opt(mpi).mp.hip.add.l = f_PassiveTorques(...
+                k_pass.hip.add,theta.pass.hip.add,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.l*2));
-            Tau_pass_opt(mpi).mp.hip.add.r = f_PassiveTorques(k_pass.hip.add,...
-                theta.pass.hip.add,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.r*2-1),...
+            TPass_opt(mpi).mp.hip.add.r = f_PassiveTorques(...
+                k_pass.hip.add,theta.pass.hip.add,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_add.r*2));
-            Tau_pass_opt(mpi).mp.hip.rot.l = f_PassiveTorques(k_pass.hip.rot,...
-                theta.pass.hip.rot,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.l*2-1),...
+            TPass_opt(mpi).mp.hip.rot.l = f_PassiveTorques(...
+                k_pass.hip.rot,theta.pass.hip.rot,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.l*2));
-            Tau_pass_opt(mpi).mp.hip.rot.r = f_PassiveTorques(k_pass.hip.rot,...
-                theta.pass.hip.rot,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.r*2-1),...
+            TPass_opt(mpi).mp.hip.rot.r = f_PassiveTorques(...
+                k_pass.hip.rot,theta.pass.hip.rot,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.hip_rot.r*2));
-            Tau_pass_opt(mpi).mp.knee.l = f_PassiveTorques(k_pass.knee,...
-                theta.pass.knee,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.l*2-1),...
+            TPass_opt(mpi).mp.knee.l = f_PassiveTorques(...
+                k_pass.knee,theta.pass.knee,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.l*2));
-            Tau_pass_opt(mpi).mp.knee.r = f_PassiveTorques(k_pass.knee,...
-                theta.pass.knee,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.r*2-1),...
+            TPass_opt(mpi).mp.knee.r = f_PassiveTorques(...
+                k_pass.knee,theta.pass.knee,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.knee.r*2));
-            Tau_pass_opt(mpi).mp.ankle.l = f_PassiveTorques(k_pass.ankle,...
-                theta.pass.ankle,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.l*2-1),...
+            TPass_opt(mpi).mp.ankle.l = f_PassiveTorques(...
+                k_pass.ankle,theta.pass.ankle,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.l*2));
-            Tau_pass_opt(mpi).mp.ankle.r = f_PassiveTorques(k_pass.ankle,...
-                theta.pass.ankle,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.r*2-1),...
+            TPass_opt(mpi).mp.ankle.r = f_PassiveTorques(...
+                k_pass.ankle,theta.pass.ankle,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.ankle.r*2));
-            Tau_pass_opt(mpi).mp.subt.l = f_PassiveTorques(k_pass.subt,...
-                theta.pass.subt,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.l*2-1),...
+            TPass_opt(mpi).mp.subt.l = f_PassiveTorques(...
+                k_pass.subt,theta.pass.subt,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.l*2));
-            Tau_pass_opt(mpi).mp.subt.r = f_PassiveTorques(k_pass.subt,...
-                theta.pass.subt,Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.r*2-1),...
+            TPass_opt(mpi).mp.subt.r = f_PassiveTorques(...
+                k_pass.subt,theta.pass.subt,...
+                Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.r*2));   
-            Tau_pass_opt(mpi).mp.trunk.ext = f_PassiveTorques(...
+            TPass_opt(mpi).mp.trunk.ext = f_PassiveTorques(...
                 k_pass.trunk.ext,theta.pass.trunk.ext,...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.ext*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.ext*2));
-            Tau_pass_opt(mpi).mp.trunk.ben = f_PassiveTorques(...
+            TPass_opt(mpi).mp.trunk.ben = f_PassiveTorques(...
                 k_pass.trunk.ben,theta.pass.trunk.ben,...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.ben*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.ben*2));
-            Tau_pass_opt(mpi).mp.trunk.rot = f_PassiveTorques(...
+            TPass_opt(mpi).mp.trunk.rot = f_PassiveTorques(...
                 k_pass.trunk.rot,theta.pass.trunk.rot,...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.rot*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.trunk.rot*2)); 
-            Tau_pass_opt_all(mpi).mp(i,:) = full([...
-                Tau_pass_opt(mpi).mp.hip.flex.l,Tau_pass_opt(mpi).mp.hip.add.l,...
-                Tau_pass_opt(mpi).mp.hip.rot.l,Tau_pass_opt(mpi).mp.hip.flex.r,...
-                Tau_pass_opt(mpi).mp.hip.add.r,Tau_pass_opt(mpi).mp.hip.rot.r,...
-                Tau_pass_opt(mpi).mp.knee.l,Tau_pass_opt(mpi).mp.knee.r,...
-                Tau_pass_opt(mpi).mp.ankle.l,Tau_pass_opt(mpi).mp.ankle.r,...
-                Tau_pass_opt(mpi).mp.subt.l,Tau_pass_opt(mpi).mp.subt.r,...
-                Tau_pass_opt(mpi).mp.trunk.ext,Tau_pass_opt(mpi).mp.trunk.ben,...
-                Tau_pass_opt(mpi).mp.trunk.rot]); 
+            TPass_opt_all(mpi).mp(i,:) = full([...
+                TPass_opt(mpi).mp.hip.flex.l,TPass_opt(mpi).mp.hip.add.l,...
+                TPass_opt(mpi).mp.hip.rot.l,TPass_opt(mpi).mp.hip.flex.r,...
+                TPass_opt(mpi).mp.hip.add.r,TPass_opt(mpi).mp.hip.rot.r,...
+                TPass_opt(mpi).mp.knee.l,TPass_opt(mpi).mp.knee.r,...
+                TPass_opt(mpi).mp.ankle.l,TPass_opt(mpi).mp.ankle.r,...
+                TPass_opt(mpi).mp.subt.l,TPass_opt(mpi).mp.subt.r,...
+                TPass_opt(mpi).mp.trunk.ext,TPass_opt(mpi).mp.trunk.ben,...
+                TPass_opt(mpi).mp.trunk.rot]); 
         end        
     end
     
@@ -1641,40 +1705,39 @@ if analyseResults
     J_opt           = 0;
     Qs_cost         = 0;
     a_cost          = 0;
-    a_cost_temp     = 0;
     Qdotdots_cost   = 0;
     vA_cost         = 0;
     dFTtilde_cost   = 0;
     mE_cost         = 0;
     passT_cost      = 0;
     trunk_cost      = 0;
-    a_effort        = 0;
-    a_fatigue       = 0;
     e_mo_opt        = struct('mp',[]);
     e_mo_opt_tr     = struct('mp',[]);
     COT_opt         = struct('mp',[]);
     for mpi = 1:NPhases        
-        count           = 1;
-        h_opt	= tf_opt/N;  
-        % Get COT
+        count = 1;
+        h_opt = tf_opt/N;  
+        % Assert speed
         dist_trav_opt = Xk_Qs_Qdots_opt(mpi).mp(end,2*jointi.pelvis.tx-1) - ...
-        Xk_Qs_Qdots_opt(mpi).mp(1,2*jointi.pelvis.tx-1); % distance traveled 
+            Xk_Qs_Qdots_opt(mpi).mp(1,2*jointi.pelvis.tx-1); % distance traveled 
         speed_opt = dist_trav_opt/tf_opt;
         assertSpeed = abs(speed_opt - gaitSpeed);
         if assertSpeed > 1e-10
-            disp(['Issue when reconstructing speed: difference is ',...
+            disp(['Issue when reconstructing target speed: difference is ',...
                 num2str(assertSpeed)])
         end         
         for k=1:N               
             % Get muscle-tendon lengths, velocities, moment arms
             % Left leg
-            qin_l_opt_all = [Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.l*2-1),...
+            qin_l_opt_all = [...
+                Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_add.l*2-1), ...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_rot.l*2-1), ...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.knee.l*2-1), ...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.ankle.l*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.subt.l*2-1)];  
-            qdotin_l_opt_all = [Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.l*2),...
+            qdotin_l_opt_all = [...
+                Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.l*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_add.l*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_rot.l*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.knee.l*2),...
@@ -1683,13 +1746,15 @@ if analyseResults
             [lMTk_l_opt_all,vMTk_l_opt_all,~] = ...
                 f_lMT_vMT_dM_l(qin_l_opt_all,qdotin_l_opt_all);    
             % Right leg
-            qin_r_opt_all = [Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.r*2-1),...
+            qin_r_opt_all = [...
+                Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_add.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_rot.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.knee.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.ankle.r*2-1),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.subt.r*2-1)];  
-            qdotin_r_opt_all = [Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.r*2),...
+            qdotin_r_opt_all = [...
+                Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_flex.r*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_add.r*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.hip_rot.r*2),...
                 Xk_Qs_Qdots_opt(mpi).mp(k,jointi.knee.r*2),...
@@ -1703,14 +1768,17 @@ if analyseResults
             % Metabolic energy rate
             [~,~,Fce_opt_all,Fiso_opt_all,~,massM_opt_all,Fpass_opt_all,~] = ...
                 f_forceEquilibrium_FtildeState_all(...
-                    a_tot_opt(mpi).mp(k,musi_FLV)',FTtilde_opt_unsc(mpi).mp(k,:)',...
-                    dFTtilde_opt_unsc(mpi).mp(k,:)',full(lMTk_lr_opt_all(musi_FLV)),...
+                    a_tot_opt(mpi).mp(k,musi_FLV)',...
+                    FTtilde_opt_unsc(mpi).mp(k,:)',...
+                    dFTtilde_opt_unsc(mpi).mp(k,:)',...
+                    full(lMTk_lr_opt_all(musi_FLV)),...
                     full(vMTk_lr_opt_all(musi_FLV)),tensions(musi_FLV));                  
             [~,lMtilde_opt_all] = f_FiberLength_TendonForce(...
                 FTtilde_opt_unsc(mpi).mp(k,:)',full(lMTk_lr_opt_all(musi_FLV)));                
-            [vM_opt_all,~] = ...
-                f_FiberVelocity_TendonForce(FTtilde_opt_unsc(mpi).mp(k,:)',...
-                dFTtilde_opt_unsc(mpi).mp(k,:)',full(lMTk_lr_opt_all(musi_FLV)),...
+            [vM_opt_all,~] = f_FiberVelocity_TendonForce(...
+                FTtilde_opt_unsc(mpi).mp(k,:)',...
+                dFTtilde_opt_unsc(mpi).mp(k,:)',...
+                full(lMTk_lr_opt_all(musi_FLV)),...
                 full(vMTk_lr_opt_all(musi_FLV)));
             [e_tot_all,~,~,~,~,e_mot] = fgetMetabolicEnergySmooth2004all(...
             a_tot_opt(mpi).mp(k,musi_FLV)',a_tot_opt(mpi).mp(k,musi_FLV)',...
@@ -1719,88 +1787,66 @@ if analyseResults
             full(Fiso_opt_all)',MTParameters_FLV(1,:)',body_mass,10);                 
             e_tot_opt_all = full(e_tot_all)';
             e_mo_opt(mpi).mp(k,:) = full(e_mot)'; 
-            % Muscle effort and fatigue
-            a_effort = a_effort + (f_JNM_exp(a_opt_unsc(mpi).mp(k,:),2));
-            a_fatigue = a_fatigue + (f_JNM_exp(a_opt_unsc(mpi).mp(k,:),10));
             for j=1:d 
-                % Tracking terms
-                Qs_cost_optk = W.TrackTD*B(j+1)*(f_JNq_bpty(qqdot_opt(mpi).mp(k,Qsi(jointi.res_bptyi))-...
+                % Tracking term
+                Qs_cost_optk = W.TrackTD*B(j+1)...
+                    *(f_JNq_bpty(qqdot_opt(mpi).mp(k,Qsi(jointi.res_bptyi))- ...
                     Qs(mpi).mp.allinterpfilt(k,jointi.res_bptyi+1)... 
                     ./scaling(mpi).mp.Qs(jointi.res_bptyi)))*h_opt;
                 Qs_cost = Qs_cost + Qs_cost_optk;                
-                track_terms_optk = Qs_cost_optk;
-                % Motor control terms        
-                a_cost_optk = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),exp_A))*h_opt;
-                a_cost_optk_temp = W.Act*B(j+1)*(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),1))*h_opt;
+                trackTerms_optk = Qs_cost_optk;
+                % Motor control terms   
+                % Muscle activations
+                a_cost_optk = W.Act*B(j+1)...
+                    *(f_JNM_exp(a_opt_unsc(mpi).mp(k,:),exp_A))*h_opt;
+                a_cost = a_cost + a_cost_optk;
+                % Metabolic energy rate
                 if W.MER == 0
                     mE_cost_optk = 0;
                 else
-                    mE_cost_optk = W.MER*B(j+1)*(f_JNM_FLVexp(e_tot_opt_all,exp_E))/body_mass*h_opt;
+                    mE_cost_optk = W.MER*B(j+1)...
+                        *(f_JNM_FLVexp(e_tot_opt_all,exp_E))/body_mass*h_opt;
                 end
-                trunk_cost_optk = W.TrunkExc*B(j+1)*(f_Jnq_trunk(e_b_opt_unsc(mpi).mp(k,:)))*h_opt; 
-                a_cost = a_cost + a_cost_optk;
-                a_cost_temp = a_cost_temp + a_cost_optk_temp;
                 mE_cost = mE_cost + mE_cost_optk;
-                Qdotdots_cost_optk = W.Acc*B(j+1)*(f_JNq_all(qdotdot_opt(mpi).mp(k,:)))*h_opt;
+                % Trunk excitations
+                trunk_cost_optk = W.TrunkExc*B(j+1)...
+                    *(f_Jnq_trunk(e_b_opt_unsc(mpi).mp(k,:)))*h_opt; 
+                trunk_cost = trunk_cost + trunk_cost_optk;
+                % Joint accelerations
+                Qdotdots_cost_optk = W.Acc*B(j+1)...
+                    *(f_JNq_all(qdotdot_opt(mpi).mp(k,:)))*h_opt;
                 Qdotdots_cost = Qdotdots_cost + Qdotdots_cost_optk;
+                % Time derivative of muscle activations
                 vA_cost_optk = W.u*B(j+1)*(f_JNMact(vA_opt(mpi).mp(k,:)))*h_opt;
                 vA_cost = vA_cost + vA_cost_optk;
-                dFTtilde_cost_optk = W.u*B(j+1)*(f_JNM_FLV(dFTtilde_opt(mpi).mp(k,:)))*h_opt;
-                dFTtilde_cost = dFTtilde_cost + dFTtilde_cost_optk;
-                trunk_cost = trunk_cost + trunk_cost_optk;
-                passT_cost_optk = W.PassT*B(j+1)*(f_JNq_act(Tau_pass_opt_all(mpi).mp(k,:)))*h_opt;
-                passT_cost = passT_cost + passT_cost_optk;                
-                mc_terms_optk = a_cost_optk + mE_cost_optk +...
+                % Time derivative of muscle-tendon forces
+                dFTtilde_cost_optk = W.u*B(j+1)...
+                    *(f_JNM_FLV(dFTtilde_opt(mpi).mp(k,:)))*h_opt;
+                dFTtilde_cost = dFTtilde_cost + dFTtilde_cost_optk;   
+                % Passive joint torques
+                passT_cost_optk = W.PassT*B(j+1)...
+                    *(f_JNq_act(TPass_opt_all(mpi).mp(k,:)))*h_opt;
+                passT_cost = passT_cost + passT_cost_optk;               
+                mcTerms_optk = a_cost_optk + mE_cost_optk +...
                     Qdotdots_cost_optk + passT_cost_optk + trunk_cost_optk + ...
                     vA_cost_optk + dFTtilde_cost_optk; 
                 dist_norm_opt = dist_trav_opt;
-                J_opt = J_opt + track_terms_optk + ...
-                    1/dist_norm_opt*mc_terms_optk;  
+                J_opt = J_opt + trackTerms_optk + 1/dist_norm_opt*mcTerms_optk;  
                 count = count + 1;                 
             end
         end            
         e_mo_opt_tr(mpi).mp = trapz(tgrid(mpi).mp(1:end-1),e_mo_opt(mpi).mp);
         % Energy model from Bhargava et al. (2004)
         COT_opt(mpi).mp = e_mo_opt_tr(mpi).mp/body_mass/dist_trav_opt; 
-    end
-    J_optf = full(J_opt);     
-    Qs_costf = full(Qs_cost);
-    Act_costf = full(a_cost);
-    Act_costf_temp = full(a_cost_temp);
-    Qdotdots_costf = full(Qdotdots_cost);
-    vA_costf = full(vA_cost);
-    dFTtilde_costf = full(dFTtilde_cost);
-    trunk_costf = full(trunk_cost);
-    passT_costf = full(passT_cost);
-    mE_costf = full(mE_cost);
-    % assertCost should be 0     
-    assertCost = abs(J_optf - stats.iterations.obj(end));
+    end   
+    % assertCost should be ~ 0     
+    assertCost = abs(full(J_opt) - stats.iterations.obj(end));
     if assertCost > 1e-10
         disp(['Issue when reconstructing optimal cost: difference is ',...
             num2str(assertCost)])
-    end 
-    cont_ob = [Qs_costf,...
-        1/dist_norm_opt*Act_costf,...
-        1/dist_norm_opt*Qdotdots_costf,1/dist_norm_opt*vA_costf,...
-        1/dist_norm_opt*dFTtilde_costf,...
-        1/dist_norm_opt*mE_costf,1/dist_norm_opt*trunk_costf,...
-        1/dist_norm_opt*passT_costf]./J_optf*100;
-    cont_ob_abs = [Qs_costf,...
-        1/dist_norm_opt*Act_costf,...
-        1/dist_norm_opt*Qdotdots_costf,1/dist_norm_opt*vA_costf,...
-        1/dist_norm_opt*dFTtilde_costf,...
-        1/dist_norm_opt*mE_costf,1/dist_norm_opt*trunk_costf,...
-        1/dist_norm_opt*passT_costf];
-    cont_ob_abs_notNorm = [Qs_costf/W.TrackTD,...
-        1/dist_norm_opt*Act_costf_temp/W.Act,...
-        1/dist_norm_opt*Qdotdots_costf/W.Acc,...
-        1/dist_norm_opt*vA_costf/W.u,...
-        1/dist_norm_opt*dFTtilde_costf/W.u,...
-        1/dist_norm_opt*mE_costf/W.MER,...
-        1/dist_norm_opt*trunk_costf/W.TrunkExc,...
-        1/dist_norm_opt*passT_costf/W.PassT,full(a_effort),full(a_fatigue)];
+    end
 
-    %% Extract passive forces and assert Hill-equilibrium   
+    %% Extract fiber lengths and passive forces, and assert Hill-equilibrium   
     Hilldiffk_opt = struct('mp',[]);
     Fpe_opt = struct('mp',[]);
     lMtilde_opt = struct('mp',[]);
@@ -1838,8 +1884,8 @@ if analyseResults
                 Xk_Qs_Qdots_opt(mpi).mp(i,jointi.subt.r*2)];      
             [lMTk_opt_r,vMTk_opt_r,~] = f_lMT_vMT_dM_r(qin_opt_r,qdotin_opt_r);
             % Both legs
-            lMTk_opt_lr(mpi).mp(i,:)     = [full(lMTk_opt_l);full(lMTk_opt_r)];
-            vMTk_opt_lr(mpi).mp(i,:)     = [full(vMTk_opt_l);full(vMTk_opt_r)];   
+            lMTk_opt_lr(mpi).mp(i,:) = [full(lMTk_opt_l);full(lMTk_opt_r)];
+            vMTk_opt_lr(mpi).mp(i,:) = [full(vMTk_opt_l);full(vMTk_opt_r)];   
             % Get muscle-tendon forces and derive Hill-equilibrium       
             [Hilldiffk_t,~,~,~,~,~,Fpe_t,lMtilde_t] = ...
                 f_forceEquilibrium_FtildeState_all(...
@@ -1851,6 +1897,7 @@ if analyseResults
            Fpe_opt(mpi).mp(i,:) = full(Fpe_t');     
            lMtilde_opt(mpi).mp(i,:) = full(lMtilde_t');      
         end
+        % assertHill should be ~ 0  
         assertHill = max(max(Hilldiffk_opt(mpi).mp));
         if assertHill > 1*10^(-tol_ipopt)
             disp('Issue in Hill-equilibrium')
@@ -1864,6 +1911,19 @@ if analyseResults
         threshold = 28;
     end
     IC1i = struct('mp',[]);
+    Qs_opt_GC_r = struct('mp',[]);
+    a_opt_unsc_GC_r = struct('mp',[]);
+    a_Ff_opt_unsc_GC_r = struct('mp',[]);
+    a_dFf_opt_unsc_GC_r = struct('mp',[]);
+    a_tot_opt_GC_r = struct('mp',[]);
+    GRF_opt_GC_r = struct('mp',[]);
+    GRM_opt_GC_r = struct('mp',[]);
+    Tauk_out_GC_r = struct('mp',[]);
+    Fpe_opt_GC_r = struct('mp',[]);
+    lMtilde_opt_GC_r = struct('mp',[]);
+    lMTk_opt_lr_GC_r = struct('mp',[]);
+    vMTk_opt_lr_GC_r = struct('mp',[]);
+    a_syn_opt_GC_r = struct('mp',[]);
     for mpi = 1:NPhases
         if exist('HS1','var')
             clear HS1
@@ -1892,126 +1952,154 @@ if analyseResults
         if isempty(phase_tran_tgridi)
             continue;
         end   
-    
-        Qs_opt_GC(mpi).mp       = zeros(N,size(q_opt_unsc(mpi).mp.deg,2));    
-        Qs_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:)  = q_opt_unsc(mpi).mp.deg(IC1i(mpi).mp:end,:);
-        Qs_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:)  = q_opt_unsc(mpi).mp.deg(1:IC1i(mpi).mp-1,:);           
-        Qs_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,jointi.pelvis.tx) = ...
+        % Joint angles
+        Qs_opt_GC_r(mpi).mp = zeros(N,size(q_opt_unsc(mpi).mp.deg,2));    
+        Qs_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            q_opt_unsc(mpi).mp.deg(IC1i(mpi).mp:end,:);
+        Qs_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            q_opt_unsc(mpi).mp.deg(1:IC1i(mpi).mp-1,:);           
+        Qs_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,jointi.pelvis.tx) = ...
             q_opt_unsc(mpi).mp.deg(1:IC1i(mpi).mp-1,jointi.pelvis.tx) + ...
             (q_opt_unsc_all(mpi).mp.deg(end,jointi.pelvis.tx)-...
             q_opt_unsc_all(mpi).mp.deg(1,jointi.pelvis.tx));    
-        temp_q_opt_GC_pelvis_tx = Qs_opt_GC(mpi).mp(1,jointi.pelvis.tx);
-        Qs_opt_GC(mpi).mp(:,jointi.pelvis.tx) = Qs_opt_GC(mpi).mp(:,jointi.pelvis.tx)-...
-            temp_q_opt_GC_pelvis_tx;    
-        % Visualization in OpenSim GUI    
-        % Create .mot file for OpenSim GUI
-        if writeMotion_r 
-            pathOpenSim = [pathPredictiveSimulations,'/OpenSim'];
-            addpath(genpath(pathOpenSim));
-%             q_opt_GUI = zeros(N+1,1+nq.res);
-%             if trunki ~= 1
-%                 q_opt_GUI = zeros(N+1,1+nq.res+3);
-%             end
-%             q_opt_GUI(:,1) = tgrid(mpi).mp';
-%             q_opt_GUI(:,2:nq.res+1)  = q_opt_unsc_all(mpi).mp.deg;
-%             JointAngle.labels = {'time','lower_torso_RX','lower_torso_RY',...
-%                 'lower_torso_RZ','lower_torso_TX','lower_torso_TY',...
-%                 'lower_torso_TZ',...
-%                 'hip_flex_l','hip_add_l','hip_rot_l',...
-%                 'hip_flex_r','hip_add_r','hip_rot_r',...
-%                 'knee_flex_l','knee_flex_r','ankle_flex_l',...
-%                 'ankle_flex_r','subt_angle_l','subt_angle_r',...
-%                 'lumbar_pitch','lumbar_roll','lumbar_yaw'};
-%             JointAngle.data = q_opt_GUI;
-%             filenameJointAngles = [pathPredictiveSimulations,'/Results/',namescript,...
-%                     '/IK',savenamePhase(mpi).mp,'.mot'];
-%             write_motionFile(JointAngle, filenameJointAngles)            
-            q_opt_GUI_HS = zeros(N,1+nq.res);
-            q_opt_GUI_HS = zeros(N+1,1+nq.res+3);
-            q_opt_GUI_HS(:,1) = tgrid(mpi).mp(1:end-1)';
-            q_opt_GUI_HS(:,2:nq.res+1)  = Qs_opt_GC(mpi).mp;
-            JointAngle_HS.data = q_opt_GUI_HS;
-            JointAngle_HS.labels = {'time','lower_torso_RX','lower_torso_RY',...
-                'lower_torso_RZ','lower_torso_TX','lower_torso_TY',...
-                'lower_torso_TZ',...
-                'hip_flex_l','hip_add_l','hip_rot_l',...
-                'hip_flex_r','hip_add_r','hip_rot_r',...
-                'knee_flex_l','knee_flex_r','ankle_flex_l',...
-                'ankle_flex_r','subt_angle_l','subt_angle_r',...
-                'lumbar_pitch','lumbar_roll','lumbar_yaw'};
-            filenameJointAngles = [pathPredictiveSimulations,'/Results/',namescript,...
-                    '/IK',savenamePhase(mpi).mp,'_HS.mot'];
-            write_motionFile(JointAngle_HS, filenameJointAngles)
-        end
-        % Ground reaction forces
-        GRF_opt_GC(mpi).mp = zeros(N,nGRF);
-        GRF_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = GRF_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);
-        GRF_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = GRF_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
-        % Ground reaction torques
-        GRM_opt_GC(mpi).mp = zeros(N,nGRF);
-        GRM_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = GRM_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);
-        GRM_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = GRM_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
-        % Joint torques
-        Tauk_out_GC(mpi).mp = zeros(N,nq.res);    
-        Tauk_out_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = Tauk_out(mpi).mp(IC1i(mpi).mp:end,:);    
-        Tauk_out_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = Tauk_out(mpi).mp(1:IC1i(mpi).mp-1,:);
-
-        % Muscle activations
-        a_opt_unsc_GC(mpi).mp = zeros(N,NMuscles);    
-        a_opt_unsc_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
-        a_opt_unsc_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
-        % Muscle activations
-        a_tot_opt_GC(mpi).mp = zeros(N,NMuscles);    
-        a_tot_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_tot_opt(mpi).mp(IC1i(mpi).mp:end,:);    
-        a_tot_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_tot_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
-        % Muscle activations
+        temp_q_opt_GC_pelvis_tx = Qs_opt_GC_r(mpi).mp(1,jointi.pelvis.tx);
+        Qs_opt_GC_r(mpi).mp(:,jointi.pelvis.tx) = ...
+            Qs_opt_GC_r(mpi).mp(:,jointi.pelvis.tx) - temp_q_opt_GC_pelvis_tx;           
+        % Muscle activations (excluding feedback component)
+        a_opt_unsc_GC_r(mpi).mp = zeros(N,NMuscles);    
+        a_opt_unsc_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            a_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
+        a_opt_unsc_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            a_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);            
+        % Muscle activations (feedback component)
         if spasi == 1
-            a_Ff_opt_unsc_GC(mpi).mp = zeros(N,NMuscles_Spas);    
-            a_Ff_opt_unsc_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_Ff_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
-            a_Ff_opt_unsc_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_Ff_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
-            % Muscle activations
-            a_dFf_opt_unsc_GC(mpi).mp = zeros(N,NMuscles_Spas);    
-            a_dFf_opt_unsc_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_dFf_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
-            a_dFf_opt_unsc_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_dFf_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
-        end
+            % Force feedback
+            a_Ff_opt_unsc_GC_r(mpi).mp = zeros(N,NMuscles_Spas);    
+            a_Ff_opt_unsc_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+                a_Ff_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
+            a_Ff_opt_unsc_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+                a_Ff_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
+            % Force rate feedback
+            a_dFf_opt_unsc_GC_r(mpi).mp = zeros(N,NMuscles_Spas);    
+            a_dFf_opt_unsc_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+                a_dFf_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);    
+            a_dFf_opt_unsc_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+                a_dFf_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
+        end        
+        % Muscle activations (including feedback component)
+        a_tot_opt_GC_r(mpi).mp = zeros(N,NMuscles);    
+        a_tot_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            a_tot_opt(mpi).mp(IC1i(mpi).mp:end,:);    
+        a_tot_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            a_tot_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Ground reaction forces
+        GRF_opt_GC_r(mpi).mp = zeros(N,nGRF);
+        GRF_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            GRF_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);
+        GRF_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            GRF_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Ground reaction torques
+        GRM_opt_GC_r(mpi).mp = zeros(N,nGRF);
+        GRM_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            GRM_opt_unsc(mpi).mp(IC1i(mpi).mp:end,:);
+        GRM_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            GRM_opt_unsc(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Joint torques
+        Tauk_out_GC_r(mpi).mp = zeros(N,nq.res);    
+        Tauk_out_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            Tauk_out(mpi).mp(IC1i(mpi).mp:end,:);    
+        Tauk_out_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            Tauk_out(mpi).mp(1:IC1i(mpi).mp-1,:);
         % Passive forces
-        Fpe_opt_GC(mpi).mp = zeros(N,NMuscles);    
-        Fpe_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = Fpe_opt(mpi).mp(IC1i(mpi).mp:end,:);    
-        Fpe_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = Fpe_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
-
+        Fpe_opt_GC_r(mpi).mp = zeros(N,NMuscles);    
+        Fpe_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            Fpe_opt(mpi).mp(IC1i(mpi).mp:end,:);    
+        Fpe_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            Fpe_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
         % Fiber lengths
-        lMtilde_opt_GC(mpi).mp = zeros(N,NMuscles);    
-        lMtilde_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = lMtilde_opt(mpi).mp(IC1i(mpi).mp:end,:);    
-        lMtilde_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = lMtilde_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
-
-        % muscle-tendon lengths
-        lMTk_opt_lr_GC(mpi).mp = zeros(N,NMuscles);    
-        lMTk_opt_lr_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = lMTk_opt_lr(mpi).mp(IC1i(mpi).mp:end,:);    
-        lMTk_opt_lr_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = lMTk_opt_lr(mpi).mp(1:IC1i(mpi).mp-1,:);
-
-        % muscle-tendon velocities
-        vMTk_opt_lr_GC(mpi).mp = zeros(N,NMuscles);    
-        vMTk_opt_lr_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = vMTk_opt_lr(mpi).mp(IC1i(mpi).mp:end,:);    
-        vMTk_opt_lr_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = vMTk_opt_lr(mpi).mp(1:IC1i(mpi).mp-1,:);
-
-        % synergy activations
+        lMtilde_opt_GC_r(mpi).mp = zeros(N,NMuscles);    
+        lMtilde_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            lMtilde_opt(mpi).mp(IC1i(mpi).mp:end,:);    
+        lMtilde_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            lMtilde_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Muscle-tendon lengths
+        lMTk_opt_lr_GC_r(mpi).mp = zeros(N,NMuscles);    
+        lMTk_opt_lr_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            lMTk_opt_lr(mpi).mp(IC1i(mpi).mp:end,:);    
+        lMTk_opt_lr_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            lMTk_opt_lr(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Muscle-tendon velocities
+        vMTk_opt_lr_GC_r(mpi).mp = zeros(N,NMuscles);    
+        vMTk_opt_lr_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+            vMTk_opt_lr(mpi).mp(IC1i(mpi).mp:end,:);    
+        vMTk_opt_lr_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+            vMTk_opt_lr(mpi).mp(1:IC1i(mpi).mp-1,:);
+        % Synergy activations
         if NSyn ~= 99
-            a_syn_opt_GC(mpi).mp = zeros(N,NMact);    
-            a_syn_opt_GC(mpi).mp(1:N-IC1i(mpi).mp+1,:) = a_syn_opt(mpi).mp(IC1i(mpi).mp:end,:);    
-            a_syn_opt_GC(mpi).mp(N-IC1i(mpi).mp+2:N,:) = a_syn_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
-        end
+            a_syn_opt_GC_r(mpi).mp = zeros(N,NMact);    
+            a_syn_opt_GC_r(mpi).mp(1:N-IC1i(mpi).mp+1,:) = ...
+                a_syn_opt(mpi).mp(IC1i(mpi).mp:end,:);    
+            a_syn_opt_GC_r(mpi).mp(N-IC1i(mpi).mp+2:N,:) = ...
+                a_syn_opt(mpi).mp(1:IC1i(mpi).mp-1,:);
+        end      
+        % Visualization in OpenSim GUI    
+        if writeMotion_r    
+            % Joint angles
+            q_opt_GUI_r = zeros(N,1+nq.res);
+            q_opt_GUI_r(:,1) = tgrid(mpi).mp(1:end-1)';
+            q_opt_GUI_r(:,2:nq.res+1)  = Qs_opt_GC_r(mpi).mp;
+            % Muscle activations (to have muscles turning red when activated)
+            Acts_opt_GUI_r = a_tot_opt_GC_r(mpi).mp;
+            % Combine data joint angles and muscle activations
+            JointAngleMuscleAct_r.data = [q_opt_GUI_r,Acts_opt_GUI_r];
+            % Get muscle labels
+            muscleNamesAll = cell(1,NMuscles);
+            for i = 1:NMuscles/2
+                muscleNamesAll{i} = [muscleNames{i}(1:end-2),'_l'];
+                muscleNamesAll{i+NMuscles/2} = [muscleNames{i}(1:end-2),'_r'];
+            end  
+            JointAngles_r.labels = {'time','lower_torso_RX','lower_torso_RY',...
+                'lower_torso_RZ','lower_torso_TX','lower_torso_TY',...
+                'lower_torso_TZ','hip_flex_l','hip_add_l','hip_rot_l',...
+                'hip_flex_r','hip_add_r','hip_rot_r','knee_flex_l',...
+                'knee_flex_r','ankle_flex_l','ankle_flex_r','subt_angle_l',...
+                'subt_angle_r','lumbar_pitch','lumbar_roll','lumbar_yaw'};
+            % Combine labels joint angles and muscle activations
+            JointAngleMuscleAct_r.labels = JointAngles_r.labels;
+            for i = 1:NMuscles
+                JointAngleMuscleAct_r.labels{i+size(q_opt_GUI_r,2)} = ...
+                    [muscleNamesAll{i},'/activation'];
+            end
+            filenameJointAngleMuscleAct_r = [pathPredictiveSimulations,...
+                '/Results/',namescript,'/IK',savenamePhase(mpi).mp,'_r.mot'];
+            write_motionFile(JointAngleMuscleAct_r,...
+                filenameJointAngleMuscleAct_r);
+        end        
     end
     
     %% Reconstruct gait cycle: starting with left heel strike
     % Identify heel strike
     threshold = 30;
     IC1i_l = struct('mp',[]);
+    Qs_opt_GC_l = struct('mp',[]);
+    a_opt_unsc_GC_l = struct('mp',[]);
+    a_Ff_opt_unsc_GC_l = struct('mp',[]);
+    a_dFf_opt_unsc_GC_l = struct('mp',[]);
+    a_tot_opt_GC_l = struct('mp',[]);
+    GRF_opt_GC_l = struct('mp',[]);
+    GRM_opt_GC_l = struct('mp',[]);
+    Tauk_out_GC_l = struct('mp',[]);
+    Fpe_opt_GC_l = struct('mp',[]);
+    lMtilde_opt_GC_l = struct('mp',[]);
+    lMTk_opt_lr_GC_l = struct('mp',[]);
+    vMTk_opt_lr_GC_l = struct('mp',[]);
+    a_syn_opt_GC_l = struct('mp',[]);
     for mpi = 1:NPhases
         if exist('HS1_l','var')
             clear HS1_l
         end
-        % Right heel strike first    
-        phase_tran_tgridi_l = find(GRF_opt_unsc(mpi).mp(:,5)<threshold,1,'last');
+        % Left heel strike first    
+        phase_tran_tgridi_l =find(GRF_opt_unsc(mpi).mp(:,5)<threshold,1,'last');
         if ~isempty(phase_tran_tgridi_l)        
             if phase_tran_tgridi_l == N
                 temp_idx = find(GRF_opt_unsc(mpi).mp(:,5)>threshold,1,'first');
@@ -2034,240 +2122,233 @@ if analyseResults
         if isempty(phase_tran_tgridi_l)
             continue;
         end   
-        % Joint kinematics
-        % Qs   
+        % Joint angles
         Qs_opt_GC_l(mpi).mp = zeros(N,size(q_opt_unsc(mpi).mp.deg,2));    
-        Qs_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:)  = q_opt_unsc(mpi).mp.deg(IC1i_l(mpi).mp:end,:);
-        Qs_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:)  = q_opt_unsc(mpi).mp.deg(1:IC1i_l(mpi).mp-1,:);           
+        Qs_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            q_opt_unsc(mpi).mp.deg(IC1i_l(mpi).mp:end,:);
+        Qs_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            q_opt_unsc(mpi).mp.deg(1:IC1i_l(mpi).mp-1,:);           
         Qs_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,jointi.pelvis.tx) = ...
             q_opt_unsc(mpi).mp.deg(1:IC1i_l(mpi).mp-1,jointi.pelvis.tx) + ...
             (q_opt_unsc_all(mpi).mp.deg(end,jointi.pelvis.tx)-...
             q_opt_unsc_all(mpi).mp.deg(1,jointi.pelvis.tx));    
         temp_q_opt_GC_pelvis_tx = Qs_opt_GC_l(mpi).mp(1,jointi.pelvis.tx);
-        Qs_opt_GC_l(mpi).mp(:,jointi.pelvis.tx) = Qs_opt_GC_l(mpi).mp(:,jointi.pelvis.tx)-...
-            temp_q_opt_GC_pelvis_tx;    
-        % Visualization in OpenSim GUI    
-        % Create .mot file for OpenSim GUI
-        if writeMotion_l 
-            pathOpenSim = [pathPredictiveSimulations,'/OpenSim'];
-            addpath(genpath(pathOpenSim));        
-            q_opt_GUI_HS_l = zeros(N,1+nq.res);
-            q_opt_GUI_HS_l(:,1) = tgrid(mpi).mp(1:end-1)';
-            q_opt_GUI_HS_l(:,2:nq.res+1)  = Qs_opt_GC_l(mpi).mp;
-            JointAngle_HS.data = q_opt_GUI_HS_l;
-            JointAngle_HS.labels = {'time','lower_torso_RX','lower_torso_RY',...
-                'lower_torso_RZ','lower_torso_TX','lower_torso_TY',...
-                'lower_torso_TZ',...
-                'hip_flex_l','hip_add_l','hip_rot_l',...
-                'hip_flex_r','hip_add_r','hip_rot_r',...
-                'knee_flex_l','knee_flex_r','ankle_flex_l',...
-                'ankle_flex_r','subt_angle_l','subt_angle_r',...
-                'lumbar_pitch','lumbar_roll','lumbar_yaw'};
-            filenameJointAngles = [pathPredictiveSimulations,'/Results/',namescript,...
-                    '/IK',savenamePhase(mpi).mp,'_HS_l.mot'];
-            write_motionFile(JointAngle_HS, filenameJointAngles)
+        Qs_opt_GC_l(mpi).mp(:,jointi.pelvis.tx) = ...
+            Qs_opt_GC_l(mpi).mp(:,jointi.pelvis.tx) - temp_q_opt_GC_pelvis_tx;  
+        % Muscle activations (excluding feedback component)
+        a_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles);    
+        a_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            a_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        a_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            a_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        % Muscle activations (feedback component)
+        a_tot_opt_GC_l(mpi).mp = zeros(N,NMuscles);    
+        a_tot_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            a_tot_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        a_tot_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            a_tot_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        if spasi == 1
+            % Force feedback
+            a_Ff_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
+            a_Ff_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+                a_Ff_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
+            a_Ff_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+                a_Ff_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+            % Force rate feedback
+            a_dFf_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
+            a_dFf_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+                a_dFf_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
+            a_dFf_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+                a_dFf_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         end
         % Ground reaction forces
         GRF_opt_GC_l(mpi).mp = zeros(N,nGRF);
-        GRF_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = GRF_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);
-        GRF_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = GRF_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        GRF_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            GRF_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);
+        GRF_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            GRF_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         % Ground reaction torques
         GRM_opt_GC_l(mpi).mp = zeros(N,nGRF);
-        GRM_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = GRM_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);
-        GRM_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = GRM_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        GRM_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            GRM_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);
+        GRM_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            GRM_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         % Joint torques
         Tauk_out_GC_l(mpi).mp = zeros(N,nq.res);    
-        Tauk_out_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = Tauk_out(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        Tauk_out_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = Tauk_out(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-
-        % Muscle activations
-        a_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles);    
-        a_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        a_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-        % Muscle activations
-        a_tot_opt_GC_l(mpi).mp = zeros(N,NMuscles);    
-        a_tot_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_tot_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        a_tot_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_tot_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-        % Muscle activations
-        if spasi == 1
-            a_Ff_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
-            a_Ff_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_Ff_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
-            a_Ff_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_Ff_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-            % Muscle activations
-            a_dFf_opt_unsc_GC_l(mpi).mp = zeros(N,NMuscles_Spas);    
-            a_dFf_opt_unsc_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_dFf_opt_unsc(mpi).mp(IC1i_l(mpi).mp:end,:);    
-            a_dFf_opt_unsc_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_dFf_opt_unsc(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-        end
+        Tauk_out_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            Tauk_out(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        Tauk_out_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            Tauk_out(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         % Passive forces
         Fpe_opt_GC_l(mpi).mp = zeros(N,NMuscles);    
-        Fpe_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = Fpe_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        Fpe_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = Fpe_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-
+        Fpe_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            Fpe_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        Fpe_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            Fpe_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         % Fiber lengths
         lMtilde_opt_GC_l(mpi).mp = zeros(N,NMuscles);    
-        lMtilde_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = lMtilde_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        lMtilde_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = lMtilde_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-
-        % muscle-tendon lengths
+        lMtilde_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            lMtilde_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        lMtilde_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            lMtilde_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        % Muscle-tendon lengths
         lMTk_opt_lr_GC_l(mpi).mp = zeros(N,NMuscles);    
-        lMTk_opt_lr_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = lMTk_opt_lr(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        lMTk_opt_lr_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = lMTk_opt_lr(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-
-        % muscle-tendon velocities
+        lMTk_opt_lr_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            lMTk_opt_lr(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        lMTk_opt_lr_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            lMTk_opt_lr(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        % Muscle-tendon velocities
         vMTk_opt_lr_GC_l(mpi).mp = zeros(N,NMuscles);    
-        vMTk_opt_lr_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = vMTk_opt_lr(mpi).mp(IC1i_l(mpi).mp:end,:);    
-        vMTk_opt_lr_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = vMTk_opt_lr(mpi).mp(1:IC1i_l(mpi).mp-1,:);
-
-        % synergy activations
+        vMTk_opt_lr_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+            vMTk_opt_lr(mpi).mp(IC1i_l(mpi).mp:end,:);    
+        vMTk_opt_lr_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+            vMTk_opt_lr(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+        % Synergy activations
         if NSyn ~= 99
             a_syn_opt_GC_l(mpi).mp = zeros(N,NMact);    
-            a_syn_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = a_syn_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
-            a_syn_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = a_syn_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
+            a_syn_opt_GC_l(mpi).mp(1:N-IC1i_l(mpi).mp+1,:) = ...
+                a_syn_opt(mpi).mp(IC1i_l(mpi).mp:end,:);    
+            a_syn_opt_GC_l(mpi).mp(N-IC1i_l(mpi).mp+2:N,:) = ...
+                a_syn_opt(mpi).mp(1:IC1i_l(mpi).mp-1,:);
         end
-    end
-    
+        % Visualization in OpenSim GUI    
+        if writeMotion_l 
+            % Joint angles
+            q_opt_GUI_l = zeros(N,1+nq.res);
+            q_opt_GUI_l(:,1) = tgrid(mpi).mp(1:end-1)';
+            q_opt_GUI_l(:,2:nq.res+1)  = Qs_opt_GC_l(mpi).mp;
+            % Muscle activations (to have muscles turning red when activated)
+            Acts_opt_GUI_l = a_tot_opt_GC_l(mpi).mp;
+            % Combine data joint angles and muscle activations
+            JointAngleMuscleAct_l.data = [q_opt_GUI_l,Acts_opt_GUI_l];
+            % Get muscle labels
+            muscleNamesAll = cell(1,NMuscles);
+            for i = 1:NMuscles/2
+                muscleNamesAll{i} = [muscleNames{i}(1:end-2),'_l'];
+                muscleNamesAll{i+NMuscles/2} = [muscleNames{i}(1:end-2),'_r'];
+            end  
+            JointAngles_l.labels = {'time','lower_torso_RX','lower_torso_RY',...
+                'lower_torso_RZ','lower_torso_TX','lower_torso_TY',...
+                'lower_torso_TZ','hip_flex_l','hip_add_l','hip_rot_l',...
+                'hip_flex_r','hip_add_r','hip_rot_r','knee_flex_l',...
+                'knee_flex_r','ankle_flex_l','ankle_flex_r','subt_angle_l',...
+                'subt_angle_r','lumbar_pitch','lumbar_roll','lumbar_yaw'};
+            % Combine labels joint angles and muscle activations
+            JointAngleMuscleAct_l.labels = JointAngles_l.labels;
+            for i = 1:NMuscles
+                JointAngleMuscleAct_l.labels{i+size(q_opt_GUI_l,2)} = ...
+                    [muscleNamesAll{i},'/activation'];
+            end
+            filenameJointAngleMuscleAct_l = [pathPredictiveSimulations,...
+                '/Results/',namescript,'/IK',savenamePhase(mpi).mp,'_l.mot'];
+            write_motionFile(JointAngleMuscleAct_l,...
+                filenameJointAngleMuscleAct_l);
+        end
+    end    
         
     %% Save results
     for mpi = 1:NPhases
         if saveResults
-            if (exist([pathresults,'/',namescript,'/Results_tracking.mat'],...
+            if (exist([pathresults,'/',namescript,'/ResultsPredSim.mat'],...
                 'file')==2) 
-            load([pathresults,'/',namescript,'/Results_tracking.mat']);
+            load([pathresults,'/',namescript,'/ResultsPredSim.mat']);
             else
-                Results_tracking.(['Case_',num2str(ww)]) = struct('Qs_opt',[]);
+                ResultsPredSim.(['Case_',num2str(ww)]) = struct('Qs_opt',[]);
             end
-        % Structure results
-        Results_tracking.(['Case_',num2str(ww)]).tgrid(mpi).mp = ...
-            tgrid(mpi).mp(1:end-1)';
-        Results_tracking.(['Case_',num2str(ww)]).Qs_opt(mpi).mp = ...
-            q_opt_unsc(mpi).mp.deg;
-        Results_tracking.(['Case_',num2str(ww)]).Qs_opt_GC(mpi).mp = ...
-            Qs_opt_GC(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Qs_opt_GC_l(mpi).mp = ...
-            Qs_opt_GC_l(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Acts_opt(mpi).mp = ...
-            a_opt_unsc(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Acts_opt_GC(mpi).mp = ...
-            a_opt_unsc_GC(mpi).mp;  
-        Results_tracking.(['Case_',num2str(ww)]).Acts_opt_GC_l(mpi).mp = ...
-            a_opt_unsc_GC_l(mpi).mp;  
-        Results_tracking.(['Case_',num2str(ww)]).Acts_tot_opt(mpi).mp = ...
-            a_tot_opt(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Acts_tot_opt_GC(mpi).mp = ...
-            a_tot_opt_GC(mpi).mp;   
-        Results_tracking.(['Case_',num2str(ww)]).Acts_tot_opt_GC_l(mpi).mp = ...
-            a_tot_opt_GC_l(mpi).mp;   
-        if spasi == 1
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc(mpi).mp = ...
-                a_Ff_opt_unsc(mpi).mp;
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc_GC(mpi).mp = ...
-                a_Ff_opt_unsc_GC(mpi).mp;
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc_GC_l(mpi).mp = ...
-                a_Ff_opt_unsc_GC_l(mpi).mp;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc(mpi).mp = ...
-                a_dFf_opt_unsc(mpi).mp;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc_GC(mpi).mp = ...
-                a_dFf_opt_unsc_GC(mpi).mp;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc_GC_l(mpi).mp = ...
-                a_dFf_opt_unsc_GC_l(mpi).mp;
-        else
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc(mpi).mp = ...
-            NaN;
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc_GC(mpi).mp = ...
-            NaN;
-            Results_tracking.(['Case_',num2str(ww)]).a_Ff_opt_unsc_GC_l(mpi).mp = ...
-            NaN;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc(mpi).mp =...
-            NaN;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc_GC(mpi).mp =...
-            NaN;
-            Results_tracking.(['Case_',num2str(ww)]).a_dFf_opt_unsc_GC_l(mpi).mp =...
-            NaN;
-        end
-        Results_tracking.(['Case_',num2str(ww)]).Ts_opt(mpi).mp = ...
-            Tauk_out(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Ts_opt_GC(mpi).mp = ...
-            Tauk_out_GC(mpi).mp;     
-        Results_tracking.(['Case_',num2str(ww)]).Ts_opt_GC_l(mpi).mp = ...
-            Tauk_out_GC_l(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).GRFs_opt(mpi).mp = ...
-            GRF_opt_unsc(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).GRFs_opt_GC(mpi).mp = ...
-            GRF_opt_GC(mpi).mp;        
-        Results_tracking.(['Case_',num2str(ww)]).GRFs_opt_GC_l(mpi).mp = ...
-            GRF_opt_GC_l(mpi).mp;     
-        Results_tracking.(['Case_',num2str(ww)]).GRMs_opt(mpi).mp = ...
-            GRM_opt_unsc(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).GRMs_opt_GC(mpi).mp = ...
-            GRM_opt_GC(mpi).mp;  
-        Results_tracking.(['Case_',num2str(ww)]).GRMs_opt_GC_l(mpi).mp = ...
-            GRM_opt_GC_l(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).Fpe_opt(mpi).mp = ...
-            Fpe_opt(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).Fpe_opt_GC(mpi).mp = ...
-            Fpe_opt_GC(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Fpe_opt_GC_l(mpi).mp = ...
-            Fpe_opt_GC_l(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).lMtilde_opt(mpi).mp = ...
-            lMtilde_opt(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).lMtilde_opt_GC(mpi).mp = ...
-            lMtilde_opt_GC(mpi).mp;    
-        Results_tracking.(['Case_',num2str(ww)]).lMtilde_opt_GC_l(mpi).mp = ...
-            lMtilde_opt_GC_l(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).lMTk_opt(mpi).mp = ...
-            lMTk_opt_lr(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).lMTk_opt_GC(mpi).mp = ...
-            lMTk_opt_lr_GC(mpi).mp;         
-        Results_tracking.(['Case_',num2str(ww)]).lMTk_opt_GC_l(mpi).mp = ...
-            lMTk_opt_lr_GC_l(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).vMTk_opt(mpi).mp = ...
-            vMTk_opt_lr(mpi).mp; 
-        Results_tracking.(['Case_',num2str(ww)]).vMTk_opt_GC(mpi).mp = ...
-            vMTk_opt_lr_GC(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).vMTk_opt_GC_l(mpi).mp = ...
-            vMTk_opt_lr_GC_l(mpi).mp;
-        
-        if NSyn ~= 99
-            Results_tracking.(['Case_',num2str(ww)]).a_syn_opt(mpi).mp = ...
-                a_syn_opt(mpi).mp;  
-            Results_tracking.(['Case_',num2str(ww)]).a_syn_opt_GC(mpi).mp = ...
-                a_syn_opt_GC(mpi).mp; 
-            Results_tracking.(['Case_',num2str(ww)]).a_syn_opt_GC_l(mpi).mp = ...
-                a_syn_opt_GC_l(mpi).mp; 
-            Results_tracking.(['Case_',num2str(ww)]).w_syn_opt_GC(mpi).mp = ...
-                [syn_wl_opt,syn_wr_opt];     
-        end
-        
-        Results_tracking.(['Case_',num2str(ww)]).COT_opt(mpi).mp = ...
-            COT_opt(mpi).mp;
-        Results_tracking.(['Case_',num2str(ww)]).Qs_toTrack(mpi).mp = ...
-            Qs(mpi).mp.allinterpfilt;
-        Results_tracking.(['Case_',num2str(ww)]).Ts_toTrack(mpi).mp = ...
-            ID(mpi).mp.allinterp;
-        Results_tracking.(['Case_',num2str(ww)]).GRFs_toTrack(mpi).mp = ...
-            GRF(mpi).mp.val.allinterp;
-        Results_tracking.(['Case_',num2str(ww)]).GRMs_toTrack(mpi).mp = ...
-            GRF(mpi).mp.MorGF.allinterp; 
-        Results_tracking.(['Case_',num2str(ww)]).stats = stats;
-        Results_tracking.(['Case_',num2str(ww)]).cont_ob = cont_ob;
-        Results_tracking.(['Case_',num2str(ww)]).cont_ob_abs = cont_ob_abs;
-        Results_tracking.(['Case_',num2str(ww)]).cont_ob_abs_notNorm = cont_ob_abs_notNorm;
-        Results_tracking.(['Case_',num2str(ww)]).StrideLength_opt = ...
-            StrideLength_opt;
-        Results_tracking.(['Case_',num2str(ww)]).StepWidth_opt_mean = ...
-            StepWidth_opt_mean;
-        Results_tracking.colheaders.joints = joints;
-        Results_tracking.colheaders.GRF = {'fore_aft_r','vertical_r',...
-            'lateral_r','fore_aft_l','vertical_l','lateral_l'};
-        for i = 1:NMuscles/2
-                Results_tracking.colheaders.muscles{i} = ...
-                    [muscleNames{i}(1:end-2),'_l'];
-                Results_tracking.colheaders.muscles{i+NMuscles/2} = ...
-                    [muscleNames{i}(1:end-2),'_r'];
-        end
-        % Save data
-        save([pathresults,'/',namescript,'/Results_tracking.mat'],...
-            'Results_tracking');
+            % Structure results
+            ResultsPredSim.(['Case_',num2str(ww)]).tgrid(mpi).mp = ...
+                tgrid(mpi).mp(1:end-1)';
+            ResultsPredSim.(['Case_',num2str(ww)]).Qs_r(mpi).mp = ...
+                Qs_opt_GC_r(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).Qs_l(mpi).mp = ...
+                Qs_opt_GC_l(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).Acts_noSpas_r(mpi).mp = ...
+                a_opt_unsc_GC_r(mpi).mp;  
+            ResultsPredSim.(['Case_',num2str(ww)]).Acts_noSpas_l(mpi).mp = ...
+                a_opt_unsc_GC_l(mpi).mp;  
+            ResultsPredSim.(['Case_',num2str(ww)]).Acts_r(mpi).mp = ...
+                a_tot_opt_GC_r(mpi).mp;   
+            ResultsPredSim.(['Case_',num2str(ww)]).Acts_l(mpi).mp = ...
+                a_tot_opt_GC_l(mpi).mp;   
+            if spasi == 1
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_Ff_r(mpi).mp = ...
+                    a_Ff_opt_unsc_GC_r(mpi).mp;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_Ff_l(mpi).mp = ...
+                    a_Ff_opt_unsc_GC_l(mpi).mp;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_dFf_r(mpi).mp = ...
+                    a_dFf_opt_unsc_GC_r(mpi).mp;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_dFf_l(mpi).mp = ...
+                    a_dFf_opt_unsc_GC_l(mpi).mp;
+            else
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_Ff_r(mpi).mp = NaN;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_Ff_l(mpi).mp = NaN;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_dFf_r(mpi).mp = NaN;
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_dFf_l(mpi).mp = NaN;
+            end
+            ResultsPredSim.(['Case_',num2str(ww)]).Ts_r(mpi).mp = ...
+                Tauk_out_GC_r(mpi).mp;     
+            ResultsPredSim.(['Case_',num2str(ww)]).Ts_l(mpi).mp = ...
+                Tauk_out_GC_l(mpi).mp; 
+            ResultsPredSim.(['Case_',num2str(ww)]).GRFs_r(mpi).mp = ...
+                GRF_opt_GC_r(mpi).mp;        
+            ResultsPredSim.(['Case_',num2str(ww)]).GRFs_l(mpi).mp = ...
+                GRF_opt_GC_l(mpi).mp;     
+            ResultsPredSim.(['Case_',num2str(ww)]).GRMs_r(mpi).mp = ...
+                GRM_opt_GC_r(mpi).mp;  
+            ResultsPredSim.(['Case_',num2str(ww)]).GRMs_l(mpi).mp = ...
+                GRM_opt_GC_l(mpi).mp; 
+            ResultsPredSim.(['Case_',num2str(ww)]).Fpe_r(mpi).mp = ...
+                Fpe_opt_GC_r(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).Fpe_l(mpi).mp = ...
+                Fpe_opt_GC_l(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).lMtilde_r(mpi).mp = ...
+                lMtilde_opt_GC_r(mpi).mp;    
+            ResultsPredSim.(['Case_',num2str(ww)]).lMtilde_l(mpi).mp = ...
+                lMtilde_opt_GC_l(mpi).mp; 
+            ResultsPredSim.(['Case_',num2str(ww)]).lMTk_r(mpi).mp = ...
+                lMTk_opt_lr_GC_r(mpi).mp;         
+            ResultsPredSim.(['Case_',num2str(ww)]).lMTk_l(mpi).mp = ...
+                lMTk_opt_lr_GC_l(mpi).mp; 
+            ResultsPredSim.(['Case_',num2str(ww)]).vMTk_r(mpi).mp = ...
+                vMTk_opt_lr_GC_r(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).vMTk_l(mpi).mp = ...
+                vMTk_opt_lr_GC_l(mpi).mp;
+            if NSyn ~= 99
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_syn_r(mpi).mp = ...
+                    a_syn_opt_GC_r(mpi).mp; 
+                ResultsPredSim.(['Case_',num2str(ww)]).Acts_syn_l(mpi).mp = ...
+                    a_syn_opt_GC_l(mpi).mp; 
+                ResultsPredSim.(['Case_',num2str(ww)]).w_syn_opt_GC(mpi).mp= ...
+                    [syn_wl_opt,syn_wr_opt];     
+            end
+            ResultsPredSim.(['Case_',num2str(ww)]).COT(mpi).mp= COT_opt(mpi).mp;
+            ResultsPredSim.(['Case_',num2str(ww)]).Qs_toTrack(mpi).mp = ...
+                Qs(mpi).mp.allinterpfilt;
+            ResultsPredSim.(['Case_',num2str(ww)]).Ts_toTrack(mpi).mp = ...
+                ID(mpi).mp.allinterp;
+            ResultsPredSim.(['Case_',num2str(ww)]).GRFs_toTrack(mpi).mp = ...
+                GRF(mpi).mp.val.allinterp;
+            ResultsPredSim.(['Case_',num2str(ww)]).GRMs_toTrack(mpi).mp = ...
+                GRF(mpi).mp.MorGF.allinterp; 
+            ResultsPredSim.(['Case_',num2str(ww)]).stats = stats;
+            ResultsPredSim.(['Case_',num2str(ww)]).StrideLength = ...
+                StrideLength_opt;
+            ResultsPredSim.(['Case_',num2str(ww)]).StepWidthMean = ...
+                StepWidth_opt_mean;
+            ResultsPredSim.(['Case_',num2str(ww)]).StepWidthStd = ...
+                StepWidth_opt_std;
+            ResultsPredSim.colheaders.joints = joints;
+            ResultsPredSim.colheaders.GRF = {'fore_aft_r','vertical_r',...
+                'lateral_r','fore_aft_l','vertical_l','lateral_l'};
+            for i = 1:NMuscles/2
+                    ResultsPredSim.colheaders.muscles{i} = ...
+                        [muscleNames{i}(1:end-2),'_l'];
+                    ResultsPredSim.colheaders.muscles{i+NMuscles/2} = ...
+                        [muscleNames{i}(1:end-2),'_r'];
+            end
+            % Save data
+            save([pathresults,'/',namescript,'/ResultsPredSim.mat'],...
+                'ResultsPredSim');
         end 
     end
 end

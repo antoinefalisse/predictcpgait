@@ -7,6 +7,8 @@
 import casadi.*
 
 %% Polynomial approximation
+pathPolynomials = [pathPredictiveSimulations,'/Polynomials'];
+addpath(genpath(pathPolynomials));
 % Since the model is asymmetric, we use different functions for both legs
 % Right leg
 muscle_spanning_info_m_r = muscle_spanning_joint_INFO_r(musi_pol,:);
