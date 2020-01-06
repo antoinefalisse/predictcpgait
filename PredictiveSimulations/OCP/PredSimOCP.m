@@ -26,13 +26,13 @@ close all;
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
 % num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-num_set = [0,1,1,1,0,0,0]; % This configuration analyzes the results
+num_set = [0,1,1,1,0,1,0]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
 % function). Through the variable idx_settings, the user can select which row of
 % parameters is used.
-idx_settings = 2:3; % Index row in matrix settings
+idx_settings = [1:35]; % Index row in matrix settings
 
 %% Settings
 import casadi.*
@@ -468,8 +468,9 @@ for mpi = 1:NPhases
         guess(mpi).mp = getGuess(Qs(mpi).mp,nq,N,NMuscles,NMuscles_FLV,...
             jointi,scaling(mpi).mp,NSyn,NMuscles_Spas);
     elseif IGi == 3
-        % IG is existing simulated movement        
-        savename_ig = ['_c',num2str(IGc),'a'];
+        % IG is existing simulated movement      
+        leg = 'r';
+        savename_ig = ['_c',num2str(IGc),'a_',leg];
         pathIK_ig = [pathPredictiveSimulations,'/Results/',namescript,...
             '/IK',savename_ig,'.mot'];
         Qs_ig(mpi).mp = getIK_MRI(pathIK_ig,joints);           
@@ -1841,7 +1842,7 @@ if analyseResults
     end   
     % assertCost should be ~ 0     
     assertCost = abs(full(J_opt) - stats.iterations.obj(end));
-    if assertCost > 1e-10
+    if assertCost > 1e-8
         disp(['Issue when reconstructing optimal cost: difference is ',...
             num2str(assertCost)])
     end
