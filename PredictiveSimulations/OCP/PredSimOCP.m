@@ -26,13 +26,13 @@ close all;
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
 % num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-num_set = [0,1,1,1,0,1,1]; % This configuration analyzes the results
+num_set = [0,1,1,1,0,0,0]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
 % function). Through the variable idx_settings, the user can select which row of
 % parameters is used.
-idx_settings = 1; % Index row in matrix settings
+idx_settings = 2:3; % Index row in matrix settings
 
 %% Settings
 import casadi.*
@@ -370,7 +370,7 @@ PassiveTorquesData
 % This data is used for settings bounds, initial guesses, and as part of the
 % optimal control problem in some cases. This data represents what is
 % achievable by the model in terms of tracking experimental data with null
-% perlvis residuals.
+% pelvis residuals.
 joints = {'lower_torso_RX','lower_torso_RY','lower_torso_RZ',...
     'lower_torso_TX','lower_torso_TY','lower_torso_TZ','hip_flex_l',...
     'hip_add_l','hip_rot_l','hip_flex_r','hip_add_r','hip_rot_r',...
@@ -435,7 +435,7 @@ scaling = struct('mp',[]);
 Qs_CP = struct('mp',[]);
 for mpi = 1:NPhases
     % Bounds accounting for both TD and CD walking patterns
-    pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average.mot'];
+    pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average_r.mot'];
     Qs_CP(mpi).mp = getIK(pathIK,joints);           
     step = (Qs_CP(mpi).mp.time(end)-Qs_CP(mpi).mp.time(1))/(N-1);
     interval = Qs_CP(mpi).mp.time(1):step:Qs_CP(mpi).mp.time(end);        
@@ -455,7 +455,7 @@ Qs_ig = struct('mp',[]);
 for mpi = 1:NPhases
     if IGi == 1
         % IG is CP walking pattern
-        pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average.mot'];
+        pathIK = [pathOpenSimModel,'IK/Gait/KS_Gait_average_r.mot'];
         Qs_CP(mpi).mp = getIK(pathIK,joints);           
         step = (Qs_CP(mpi).mp.time(end)-Qs_CP(mpi).mp.time(1))/(N-1);
         interval = Qs_CP(mpi).mp.time(1):step:Qs_CP(mpi).mp.time(end);        
@@ -2318,7 +2318,7 @@ if analyseResults
                     a_syn_opt_GC_r(mpi).mp; 
                 ResultsPredSim.(['Case_',num2str(ww)]).Acts_syn_l(mpi).mp = ...
                     a_syn_opt_GC_l(mpi).mp; 
-                ResultsPredSim.(['Case_',num2str(ww)]).w_syn_opt_GC(mpi).mp= ...
+                ResultsPredSim.(['Case_',num2str(ww)]).w_syn(mpi).mp = ...
                     [syn_wl_opt,syn_wr_opt];     
             end
             ResultsPredSim.(['Case_',num2str(ww)]).COT(mpi).mp= COT_opt(mpi).mp;
