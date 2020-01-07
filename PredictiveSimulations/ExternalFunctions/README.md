@@ -1,0 +1,3 @@
+# ExternalFunctions
+
+This repository contains the external function called when solving the optimal control problems. This external function is compiled as a dll shared in this folder. You should be able to use that dll on Windows machines. On other platform, you will need to follow the instructions [here](https://github.com/antoinefalisse/opensim-core/tree/AD-recorder#build-external-functions) to build the external function. The source code is the cpp file in this folder but is also uploaded in [this repository](https://github.com/antoinefalisse/opensim-core/tree/AD-recorder/OpenSim/External_Functions/PredSim_CP).
