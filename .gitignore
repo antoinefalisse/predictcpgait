@@ -1,17 +1,38 @@
 # Add any directories, files, or patterns you don't want to be tracked by version control
 
-**/OpenSimModel/subject1/
-!OpenSimModel/subject1/ParameterEstimation/MTParameters_generic.mat
-!OpenSimModel/subject1/ParameterEstimation/MTParameters_personalized.mat
-!OpenSimModel/subject1/Polynomials/muscle_spanning_joint_INFO_subject1_l.mat
-!OpenSimModel/subject1/Polynomials/muscle_spanning_joint_INFO_subject1_r.mat
-!OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_l.mat
-!OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_r.mat
-!OpenSimModel/subject1/Synergies/Synergies.mat
-!OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_ankle_forceModel_19  20  21.mat
-!OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_knee_forceModel_6  7  8.mat
-!OpenSimModel/subject1/ReferenceTracking/ReferenceTracking.mat
-!OpenSimModel/subject1/IK/Gait/KS_Gait_average_r.mot
+OpenSimModel/*
+!/OpenSimModel/subject1
+OpenSimModel/subject1/*
+!/OpenSimModel/subject1/ParameterEstimation
+OpenSimModel/subject1/ParameterEstimation/*
+!/OpenSimModel/subject1/ParameterEstimation/MTParameters_generic.mat
+!/OpenSimModel/subject1/ParameterEstimation/MTParameters_personalized.mat
+
+!/OpenSimModel/subject1/Polynomials
+OpenSimModel/subject1/Polynomials/*
+!/OpenSimModel/subject1/Polynomials/muscle_spanning_joint_INFO_subject1_l.mat
+!/OpenSimModel/subject1/Polynomials/muscle_spanning_joint_INFO_subject1_r.mat
+!/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_l.mat
+!/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_r.mat
+
+
+!/OpenSimModel/subject1/Synergies
+OpenSimModel/subject1/Synergies/*
+!/OpenSimModel/subject1/Synergies/Synergies.mat
+
+!/OpenSimModel/subject1/Spasticity
+OpenSimModel/subject1/Spasticity/*
+!/OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_ankle_forceModel_19  20  21.mat
+!/OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_knee_forceModel_6  7  8.mat
+
+!/OpenSimModel/subject1/ReferenceTracking
+OpenSimModel/subject1/ReferenceTracking/*
+!/OpenSimModel/subject1/ReferenceTracking/ReferenceTracking.mat
+
+!/OpenSimModel/subject1/IK
+OpenSimModel/subject1/IK/*
+!/OpenSimModel/subject1/IK/Gait/KS_Gait_average_r.mot
 
 **/PredictiveSimulations/Results/
 !/PredictiveSimulations/Results/PredSimOCP/ResultsPredSim.mat
+
