@@ -3,6 +3,13 @@
 OpenSimModel/*
 !/OpenSimModel/subject1
 OpenSimModel/subject1/*
+
+!/OpenSimModel/subject1/EMG
+OpenSimModel/subject1/EMG/*
+!/OpenSimModel/subject1/EMG/Gait
+OpenSimModel/subject1/EMG/Gait/*
+!/OpenSimModel/subject1/EMG/Gait/EMG_filt.mat
+
 !/OpenSimModel/subject1/ParameterEstimation
 OpenSimModel/subject1/ParameterEstimation/*
 !/OpenSimModel/subject1/ParameterEstimation/MTParameters_generic.mat
