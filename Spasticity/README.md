@@ -14,3 +14,5 @@ Deriving personalized spasticity models consists of different steps.
     - This folder contains code to predict the spastic response during gait.
     
 Each step depends on results from the previous one, please keep in mind the order. Furthermore, the spasticity models depend on the muscle-tendon parameters (see [ParameterEstimation](https://github.com/antoinefalisse/predictcpgait/tree/master/ParameterEstimation)).
+
+**WARNING: only a subset of the data is shared on Github to limit the size of the repository. This dataset is sufficient for running the predictive simulations but not for running the parameter estimation and deriving the spasticity models. You can find the full dataset in [this repository](https://simtk.org/projects/predictcpgait).**

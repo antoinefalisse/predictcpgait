@@ -20,7 +20,7 @@ The other folders contain code and data used for the muscle-tendon parameter est
 2. MuscleModel
     - This folder contains code for modeling muscle behavior and a bunch of other things.
 3. OpenSimModel
-    - This folder contains OpenSim model and data used in this study.
+    - This folder contains OpenSim model and data used in this study. **WARNING: only a subset of the data is shared on Github to limit the size of the repository. This dataset is sufficient for running the predictive simulations but not for running the parameter estimation and deriving the spasticity models. You can find the full dataset in [this repository](https://simtk.org/projects/predictcpgait).**
 4. VariousFunctions
     - This folder contains a bunch of scripts and functions used in other code of this repository.
     
