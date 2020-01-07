@@ -467,10 +467,10 @@ bounds.syna.lower = zeros(1,NSyn);
 bounds.syna.upper = ones(1,NSyn);
 
 %% Synergy weights
-bounds.synw.lower.l(:,:)=0; 
-bounds.synw.upper.l(:,:)=1;  
-bounds.synw.lower.r(:,:)=0;  
-bounds.synw.upper.r(:,:)=1;   
+bounds.synw.lower.l = zeros(NMuscles/2*NSyn,1); 
+bounds.synw.upper.l = ones(NMuscles/2*NSyn,1); 
+bounds.synw.lower.r = zeros(NMuscles/2*NSyn,1); 
+bounds.synw.upper.r = ones(NMuscles/2*NSyn,1); 
 
 %% Muscle activations from muscle-tendon force feedback 
 bounds.a_Ff.lower = zeros(1,NMuscles_Spas);

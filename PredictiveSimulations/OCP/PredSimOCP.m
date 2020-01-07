@@ -25,14 +25,14 @@ close all;
 % num_set(6): set to 1 to write motion file starting at right heel strike
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
-% num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-num_set = [0,1,1,1,0,1,0]; % This configuration analyzes the results
+num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
+% num_set = [0,1,1,1,0,1,0]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
 % function). Through the variable idx_settings, the user can select which row of
 % parameters is used.
-idx_settings = [1:35]; % Index row in matrix settings
+idx_settings = 31; % Index row in matrix settings
 
 %% Settings
 import casadi.*
@@ -511,14 +511,14 @@ if solveProblem
         % Synergy weights: left side
         syn_wl          = MX.sym('syn_wl',NMuscles/2*NSyn);
         w               = [w {syn_wl}];
-        lbw             = [lbw; bounds(1).mp.synw.lower.l(:)];
-        ubw             = [ubw; bounds(1).mp.synw.upper.l(:)];
+        lbw             = [lbw; bounds(1).mp.synw.lower.l];
+        ubw             = [ubw; bounds(1).mp.synw.upper.l];
         w0              = [w0;  guess(1).mp.synw.l(:)];
         % Synergy weights: right side
         syn_wr          = MX.sym('syn_wr',NMuscles/2*NSyn);
         w               = [w {syn_wr}];
-        lbw             = [lbw; bounds(1).mp.synw.lower.r(:)];
-        ubw             = [ubw; bounds(1).mp.synw.upper.r(:)];
+        lbw             = [lbw; bounds(1).mp.synw.lower.r];
+        ubw             = [ubw; bounds(1).mp.synw.upper.r];
         w0              = [w0;  guess(1).mp.synw.r(:)];  
     end
     % Loop over phases
