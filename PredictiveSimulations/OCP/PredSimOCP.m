@@ -32,7 +32,7 @@ num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
 % section, sets some parameters of the problem (e.g., weights in the cost
 % function). Through the variable idx_settings, the user can select which row of
 % parameters is used.
-idx_settings = 31; % Index row in matrix settings
+idx_settings = 1; % Index row in matrix settings
 
 %% Settings
 import casadi.*
