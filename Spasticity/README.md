@@ -13,4 +13,4 @@ Deriving personalized spasticity models consists of different steps.
 4. SpasticityGait
     - This folder contains code to predict the spastic response during gait.
     
-Each step depends on results from the previous one, please keep in mind the order. Furthermore, the spasticity models depend on the muscle-tendon parameters(see [ParameterEstimation](https://github.com/antoinefalisse/predictcpgait/tree/master/ParameterEstimation)).
+Each step depends on results from the previous one, please keep in mind the order. Furthermore, the spasticity models depend on the muscle-tendon parameters (see [ParameterEstimation](https://github.com/antoinefalisse/predictcpgait/tree/master/ParameterEstimation)).

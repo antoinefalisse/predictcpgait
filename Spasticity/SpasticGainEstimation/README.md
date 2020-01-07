@@ -7,7 +7,7 @@ This repository contains code to estimate personalized feedback gains based on p
 2. SpasticGainEstimation_observeResults.m
     - This script allows observing the results of the feedback gain estimation.
     
-The two other are optional:
+The two other scripts are optional:
 
 1. adjustEMGOnset.m
     - This script allows adjusting the EMG onset identified automatically in the IPSA data.
