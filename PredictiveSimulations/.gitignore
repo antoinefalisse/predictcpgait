@@ -4,3 +4,4 @@ Results/*
 !/Results/PredSimOCP
 Results/PredSimOCP/*
 !/Results/PredSimOCP/ResultsPredSim.mat
+!/Results/PredSimOCP/README.md
