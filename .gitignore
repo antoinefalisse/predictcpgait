@@ -15,13 +15,16 @@ OpenSimModel/subject1/Polynomials/*
 !/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_l.mat
 !/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_r.mat
 
-
 !/OpenSimModel/subject1/Synergies
 OpenSimModel/subject1/Synergies/*
 !/OpenSimModel/subject1/Synergies/Synergies.mat
 
 !/OpenSimModel/subject1/Spasticity
 OpenSimModel/subject1/Spasticity/*
+!/OpenSimModel/subject1/Spasticity/SpasticGainEstimation
+OpenSimModel/subject1/Spasticity/SpasticGainEstimation/*
+!/OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel
+OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/*
 !/OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_ankle_forceModel_19  20  21.mat
 !/OpenSimModel/subject1/Spasticity/SpasticGainEstimation/forceModel/output_knee_forceModel_6  7  8.mat
 
@@ -31,8 +34,6 @@ OpenSimModel/subject1/ReferenceTracking/*
 
 !/OpenSimModel/subject1/IK
 OpenSimModel/subject1/IK/*
+!/OpenSimModel/subject1/IK/Gait
+OpenSimModel/subject1/IK/Gait/*
 !/OpenSimModel/subject1/IK/Gait/KS_Gait_average_r.mot
-
-**/PredictiveSimulations/Results/
-!/PredictiveSimulations/Results/PredSimOCP/ResultsPredSim.mat
-
