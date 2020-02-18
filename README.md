@@ -1,6 +1,6 @@
-# predictcpgait
+# Predictive simulation of cerebral palsy gait (predictcpgait)
 
-This repository contains code and data to generate three-dimensional muscle-driven predictive simulations of walking in children with cerebral palsy as described in: Falisse A, Pitto L, Kainz H, Hoang H, Wesseling M, Van Rossom S, Papageorgiou E, Bar-On L, Hallemans A, Desloovere K, Molenaers G, Van Campenhout A, De Groote F, and Jonkers I. Physics-based simulations to predict the differential effects of motor control and musculoskeletal deficits on gait dysfunction in cerebral palsy: a retrospective case study. Frontiers in Human Neuroscience. 2020.
+This repository contains code and data to generate three-dimensional muscle-driven predictive simulations of walking in children with cerebral palsy as described in: [Falisse A, Pitto L, Kainz H, Hoang H, Wesseling M, Van Rossom S, Papageorgiou E, Bar-On L, Hallemans A, Desloovere K, Molenaers G, Van Campenhout A, De Groote F, and Jonkers I. Physics-based simulations to predict the differential effects of motor control and musculoskeletal deficits on gait dysfunction in cerebral palsy: a retrospective case study. Frontiers in Human Neuroscience. 2020](https://doi.org/10.3389/fnhum.2020.00040).
 
 Thanks for citing our work in any derived publication. Feel free to reach us for any questions: antoine.falisse@kuleuven.be | antoinefalisse@gmail.com | friedl.degroote@kuleuven.be | ilse.jonkers@kuleuven.be. This code has been developed on Windows using MATLAB2017b. There is no guarantee that it runs smooth on other platforms. Please let us know if you run into troubles.
 
