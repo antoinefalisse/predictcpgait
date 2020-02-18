@@ -473,7 +473,7 @@ for mpi = 1:NPhases
         savename_ig = ['_c',num2str(IGc),'a_',leg];
         pathIK_ig = [pathPredictiveSimulations,'/Results/',namescript,...
             '/IK',savename_ig,'.mot'];
-        Qs_ig(mpi).mp = getIK_MRI(pathIK_ig,joints);           
+        Qs_ig(mpi).mp = getIK(pathIK_ig,joints);           
         step = (Qs_ig(mpi).mp.time(end)-Qs_ig(mpi).mp.time(1))/(N-1);        
         interval = Qs_ig(mpi).mp.time(1):step:Qs_ig(mpi).mp.time(end);        
         Qs_ig(mpi).mp.allinterpfilt = interp1(Qs_ig(mpi).mp.allfilt(:,1),...
