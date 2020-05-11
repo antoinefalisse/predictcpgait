@@ -21,6 +21,9 @@ OpenSimModel/subject1/Polynomials/*
 !/OpenSimModel/subject1/Polynomials/muscle_spanning_joint_INFO_subject1_r.mat
 !/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_l.mat
 !/OpenSimModel/subject1/Polynomials/MuscleInfo_subject1_r.mat
+!/OpenSimModel/subject1/Polynomials/SetupMA.xml
+!/OpenSimModel/subject1/Polynomials/dummy_qdot.mat
+!/OpenSimModel/subject1/Polynomials/dummy_motion.mot
 
 !/OpenSimModel/subject1/Synergies
 OpenSimModel/subject1/Synergies/*
