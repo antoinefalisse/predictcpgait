@@ -25,8 +25,8 @@ close all;
 % num_set(6): set to 1 to write motion file starting at right heel strike
 % num_set(7): set to 1 to write motion file starting at left heel strike
 
-num_set = [1,0,0,0,0,0,0]; % This configuration solves the problem
-% num_set = [0,1,1,1,0,1,0]; % This configuration analyzes the results
+num_set = [1,1,0,1,0,1,0]; % This configuration solves the problem
+% num_set = [0,1,1,0,0,1,1]; % This configuration analyzes the results
 
 % The variable 'settings', loaded through PredSimOCP_settings in the following
 % section, sets some parameters of the problem (e.g., weights in the cost
