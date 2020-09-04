@@ -47,3 +47,6 @@ OpenSimModel/subject1/IK/*
 !/OpenSimModel/subject1/IK/Gait
 OpenSimModel/subject1/IK/Gait/*
 !/OpenSimModel/subject1/IK/Gait/KS_Gait_average_r.mot
+
+!/OpenSimModel/subject1/subject1_MRI.osim
+!/OpenSimModel/subject1/Geometry
